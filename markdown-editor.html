@@ -1,0 +1,2532 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<link rel="icon" type="image/svg+xml" href="resources/images/favicon.svg">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Markdown Editor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Spectral:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js"></script>
+<style>
+  :root{
+    --paper:        #FAF6EC;
+    --paper-deep:    #F1E9D6;
+    --ink:           #221C12;
+    --ink-soft:      #6B6151;
+    --rule:          #DDD0B0;
+    --rule-strong:   #C9B888;
+    --amber:         #E6A431;
+    --amber-deep:    #B97A1A;
+    --tomato:        #C2462A;
+    --green-ok:      #4C7A4A;
+    --display: 'Space Grotesk', sans-serif;
+    --serif:   'Spectral', Georgia, 'Times New Roman', serif;
+    --mono:    'JetBrains Mono', 'SF Mono', Consolas, monospace;
+  }
+
+  *{ box-sizing:border-box; }
+  html,body{ height:100%; margin:0; }
+  body{
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--serif);
+    overflow:hidden;
+  }
+  ::selection{ background: var(--amber); color:#1a1306; }
+
+  button{ font-family:inherit; cursor:pointer; }
+  button:focus-visible, a:focus-visible, [tabindex]:focus-visible, summary:focus-visible{
+    outline: 2px solid var(--tomato); outline-offset:2px;
+  }
+
+  /* ---------- App shell ---------- */
+  .app{
+    display:grid;
+    grid-template-rows: 56px 1fr;
+    grid-template-columns: 268px 1fr;
+    height:100vh;
+  }
+  .topbar{
+    grid-column: 1 / 3;
+    display:flex; align-items:center; gap:14px;
+    padding: 0 18px;
+    background: var(--ink);
+    color: var(--paper);
+    border-bottom: 3px solid var(--amber);
+  }
+  .brand{
+    display:flex; align-items:baseline; gap:8px;
+    font-family: var(--display); font-weight:700;
+    letter-spacing:.02em;
+    white-space:nowrap;
+  }
+  .brand .mark{ color: var(--amber); }
+  .brand small{
+    font-family: var(--mono); font-weight:500; font-size:11px;
+    letter-spacing:.08em; color:#cfc6ad; text-transform:uppercase;
+  }
+  .topbar .spacer{ flex:1; }
+  .folder-name{
+    font-family: var(--mono); font-size:12.5px; color:#cfc6ad;
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:260px;
+  }
+  .btn{
+    border:1px solid transparent; border-radius:7px;
+    padding:7px 13px; font-size:13px; font-weight:600;
+    font-family: var(--display);
+    display:inline-flex; align-items:center; gap:6px;
+    transition: transform .08s ease, box-shadow .08s ease, background .15s ease;
+  }
+  .btn:active{ transform: translateY(1px); }
+  .btn-amber{ background: var(--amber); color:#241a05; }
+  .btn-amber:hover{ background: var(--amber-deep); }
+  .btn-ghost{ background: transparent; color: var(--paper); border-color:#4a4131; }
+  .btn-ghost:hover{ background:#312918; }
+  .btn-dark{ background: var(--ink); color: var(--paper); border-color: var(--ink); }
+  .btn-dark:hover{ background:#3a3120; }
+  .btn-dark:disabled{ opacity:.35; cursor:not-allowed; }
+  .btn[disabled]{ opacity:.4; cursor:not-allowed; }
+
+  /* ---------- Sidebar ---------- */
+  .sidebar{
+    background: var(--paper-deep);
+    border-right: 1px solid var(--rule-strong);
+    overflow-y:auto;
+    padding: 14px 10px 30px;
+  }
+  .sidebar-head{
+    display:flex; align-items:center; justify-content:space-between;
+    padding: 2px 6px 12px;
+    font-family: var(--mono); font-size:10.5px; letter-spacing:.1em;
+    color: var(--ink-soft); text-transform:uppercase;
+    border-bottom:1px dashed var(--rule-strong); margin-bottom:10px;
+  }
+  .sidebar-head button{
+    background:none; border:none; color:var(--amber-deep); font-size:16px; line-height:1;
+    padding:2px 4px; border-radius:5px;
+  }
+  .sidebar-head button:hover{ background: var(--rule); }
+
+  /* ---------- Sidebar search ---------- */
+  .search-wrap{
+    padding: 0 0 10px;
+    border-bottom: 1px dashed var(--rule-strong);
+    margin-bottom: 10px;
+  }
+  .search-input-row{
+    display:flex; align-items:center; gap:0;
+    background:#fff; border:1px solid var(--rule-strong);
+    border-radius:8px; overflow:hidden;
+  }
+  .search-input-row:focus-within{
+    outline: 2px solid var(--amber); outline-offset:0;
+    border-color: var(--amber);
+  }
+  .search-icon{
+    padding:0 8px 0 9px; font-size:13px; color:var(--ink-soft);
+    flex-shrink:0; pointer-events:none; line-height:1;
+  }
+  #searchInput{
+    flex:1; border:none; outline:none; background:transparent;
+    font-family:var(--mono); font-size:12px; color:var(--ink);
+    padding:7px 4px 7px 0;
+  }
+  #searchInput::placeholder{ color:var(--rule-strong); }
+  #searchClear{
+    background:none; border:none; font-size:14px; color:var(--ink-soft);
+    padding:0 8px; line-height:1; display:none;
+  }
+  #searchClear:hover{ color:var(--tomato); }
+  #searchClear.visible{ display:block; }
+  .search-status{
+    font-family:var(--mono); font-size:10.5px; color:var(--ink-soft);
+    padding:5px 2px 0; min-height:16px;
+  }
+  .search-results{
+    margin-top:2px; display:none;
+  }
+  .search-results.visible{ display:block; }
+  .sr-item{
+    padding:7px 8px; border-radius:7px; cursor:pointer;
+    border:1px solid transparent; margin:2px 0;
+    transition: background .1s;
+  }
+  .sr-item:hover{ background:var(--rule); }
+  .sr-item.sr-active{ background:#fff; border-color:var(--rule-strong); }
+  .sr-name{
+    font-family:var(--mono); font-size:11.5px; font-weight:600;
+    color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+    margin-bottom:3px;
+  }
+  .sr-path{
+    font-family:var(--mono); font-size:9.5px; color:var(--ink-soft);
+    margin-bottom:4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  .sr-snippet{
+    font-family:var(--serif); font-size:11.5px; color:#4a3f2c;
+    line-height:1.5; display:-webkit-box;
+    -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;
+  }
+  .sr-snippet mark{
+    background: var(--amber); color:#1a1306;
+    border-radius:2px; padding:0 1px;
+  }
+
+  /* In-page search highlight (temporary) */
+  mark.search-hl{
+    background: var(--amber);
+    color: #1a1306;
+    border-radius: 3px;
+    padding: 1px 2px;
+    transition: background 1.2s ease, color 1.2s ease, outline 0.3s ease;
+  }
+  mark.search-hl.fading{
+    background: transparent;
+    color: inherit;
+  }
+  mark.search-hl.first-match{
+    outline: 2px solid var(--amber-deep);
+    outline-offset: 2px;
+  }
+  mark.search-hl.first-match.fading{
+    outline-color: transparent;
+  }
+  .sr-score{
+    float:right; font-family:var(--mono); font-size:9px;
+    color:var(--rule-strong); margin-left:6px;
+  }
+  .sr-empty{
+    font-family:var(--mono); font-size:11.5px; color:var(--ink-soft);
+    padding:10px 8px; text-align:center;
+  }
+  .search-index-bar{
+    font-family:var(--mono); font-size:10px; color:var(--ink-soft);
+    padding:4px 2px 0; display:flex; align-items:center; gap:6px;
+  }
+  .index-dot{
+    width:6px; height:6px; border-radius:50%;
+    background:var(--rule-strong); flex-shrink:0;
+    transition: background .3s;
+  }
+  .index-dot.ready{ background:var(--green-ok); }
+  .index-dot.busy{ background:var(--amber); animation: pulse .8s infinite alternate; }
+  @keyframes pulse{ from{opacity:1} to{opacity:.3} }
+
+  ul.tree, ul.tree ul{ list-style:none; margin:0; padding-left:14px; }
+  ul.tree{ padding-left:0; }
+  ul.tree li.dir details{ }
+  ul.tree li.dir summary{
+    list-style:none; cursor:pointer; user-select:none;
+    font-family: var(--mono); font-size:12.5px; font-weight:600;
+    color: var(--ink); padding:5px 6px; border-radius:6px;
+    display:flex; align-items:center; gap:6px;
+  }
+  ul.tree li.dir summary::-webkit-details-marker{ display:none; }
+  ul.tree li.dir summary::before{ content:"▸"; color:var(--amber-deep); font-size:10px; transition:transform .12s; display:inline-block; }
+  ul.tree li.dir details[open] > summary::before{ transform:rotate(90deg); }
+  ul.tree li.dir summary:hover{ background: var(--rule); }
+
+  ul.tree li.file{
+    font-family: var(--mono); font-size:12.5px;
+    padding:5px 8px 5px 22px; margin:1px 0;
+    border-radius:6px; cursor:pointer; color: var(--ink-soft);
+    display:flex; align-items:center; gap:7px;
+    border-left:2px solid transparent;
+  }
+  ul.tree li.file::before{ content:"·md"; font-size:9px; color:var(--rule-strong); border:1px solid var(--rule-strong); border-radius:4px; padding:1px 3px; }
+  ul.tree li.file:hover{ background: var(--rule); color: var(--ink); }
+  ul.tree li.file.active{ background:#fff; color:var(--ink); border-left-color: var(--tomato); font-weight:600; box-shadow: inset 0 0 0 1px var(--rule-strong); }
+
+  .empty-tree{
+    font-family: var(--mono); font-size:12px; color: var(--ink-soft);
+    line-height:1.6; padding:10px 6px;
+  }
+
+  /* ---------- Main / tabs ---------- */
+  .main{ display:flex; flex-direction:column; overflow:hidden; }
+  .tabbar{
+    display:flex; align-items:flex-end; gap:2px;
+    background: var(--paper-deep);
+    border-bottom:1px solid var(--rule-strong);
+    padding: 8px 10px 0;
+    overflow-x:auto;
+    min-height:42px;
+  }
+  .tab{
+    position:relative;
+    display:flex; align-items:center; gap:8px;
+    background: var(--rule);
+    color: var(--ink-soft);
+    font-family: var(--mono); font-size:12px;
+    padding:8px 10px 10px 12px;
+    border-radius:8px 8px 0 0;
+    cursor:pointer; white-space:nowrap;
+    border:1px solid var(--rule-strong); border-bottom:none;
+  }
+  .tab.active{
+    background:#fff; color: var(--ink); font-weight:600;
+    background-image:
+      linear-gradient(135deg, #fff 50%, transparent 50%),
+      linear-gradient(225deg, #fff 50%, transparent 50%);
+    background-size: 9px 9px;
+    background-position: bottom left, bottom right;
+    background-repeat: repeat-x;
+    padding-bottom:14px;
+    z-index:2;
+  }
+  .tab .dot{ width:6px; height:6px; border-radius:50%; background: var(--tomato); display:none; }
+  .tab.dirty .dot{ display:inline-block; }
+  .tab .x{
+    opacity:.5; font-size:13px; padding:0 2px; border-radius:4px;
+  }
+  .tab .x:hover{ opacity:1; background: rgba(0,0,0,.08); }
+
+  .toolbar{
+    display:flex; align-items:center; gap:12px;
+    padding:10px 18px; border-bottom:1px solid var(--rule);
+    background:#fff;
+  }
+  .segmented{
+    display:inline-flex; background: var(--paper-deep); border:1px solid var(--rule-strong);
+    border-radius:8px; padding:2px; gap:2px;
+  }
+  .segmented button{
+    background:none; border:none; font-family: var(--display); font-weight:600; font-size:12.5px;
+    padding:6px 12px; border-radius:6px; color: var(--ink-soft);
+  }
+  .segmented button.active{ background: var(--ink); color: var(--paper); }
+  .toolbar .spacer{ flex:1; }
+  .save-status{
+    font-family: var(--mono); font-size:11.5px; color: var(--ink-soft);
+    min-width:90px;
+  }
+  .save-status.dirty{ color: var(--tomato); }
+  .save-status.saved{ color: var(--green-ok); }
+  .btn-toggle{
+    background: var(--paper-deep); color: var(--ink-soft); border:1px solid var(--rule-strong);
+  }
+  .btn-toggle.active{ background:#EAF3E8; color: var(--green-ok); border-color:#bcd9b8; }
+  .btn-toggle:hover{ filter:brightness(0.97); }
+  .path-pill{
+    font-family: var(--mono); font-size:11.5px; color: var(--ink-soft);
+    background: var(--paper-deep); border:1px solid var(--rule); border-radius:20px;
+    padding:4px 11px;
+  }
+
+  .content-area{ flex:1; overflow:hidden; position:relative; background:#fff; }
+  .panes{ display:grid; height:100%; }
+  .panes.mode-preview{ grid-template-columns: 1fr; }
+  .panes.mode-edit{ grid-template-columns: 1fr; }
+  .panes.mode-split{ grid-template-columns: 1fr 1fr; }
+
+  .pane-edit, .pane-preview{ overflow-y:auto; height:100%; }
+  .pane-edit{ display:none; border-right:1px solid var(--rule); background:#FFFDF7; }
+  .pane-preview{ display:block; }
+  .panes.mode-edit .pane-edit{ display:block; }
+  .panes.mode-edit .pane-preview{ display:none; }
+  .panes.mode-split .pane-edit{ display:block; }
+  .panes.mode-split .pane-preview{ display:block; }
+
+  textarea#editor{
+    width:100%; height:100%; border:none; resize:none; outline:none;
+    font-family: var(--mono); font-size:13.5px; line-height:1.65;
+    padding: 24px 26px; color:#2a2316; background:#FFFDF7;
+    transition: background .12s, box-shadow .12s;
+  }
+  textarea#editor.img-dragover{
+    background: #FFF8E8;
+    box-shadow: inset 0 0 0 3px var(--amber);
+  }
+
+  .doc{
+    max-width: 760px; margin: 0 auto; padding: 40px 36px 90px;
+    line-height:1.7; font-size:16.5px;
+  }
+  .panes.mode-split .doc{ max-width:none; padding:28px 30px 70px; }
+
+  .doc h1{ font-family: var(--display); font-size:32px; font-weight:700; margin:0 0 6px; letter-spacing:-.01em; }
+  .doc h1 + p, .doc h1 + hr{ margin-top:18px; }
+  .doc h2{
+    font-family: var(--display); font-size:21px; font-weight:700; margin:42px 0 14px;
+    padding-bottom:8px; border-bottom:2px solid var(--ink); color:var(--ink);
+  }
+  .doc h3{ font-family: var(--display); font-size:16.5px; font-weight:600; margin:28px 0 10px; color: var(--amber-deep); text-transform:uppercase; letter-spacing:.03em; }
+  .doc h3::before{ content:"§ "; color: var(--rule-strong); }
+  .doc h4{ font-size:15px; font-weight:600; margin:18px 0 6px; }
+  .doc p{ margin:0 0 14px; color:#33291a; }
+  .doc a{ color: var(--tomato); text-decoration: underline; text-decoration-color: var(--rule-strong); text-underline-offset:2px; }
+  .doc a:hover{ text-decoration-color: var(--tomato); }
+  .doc ul, .doc ol{ margin:0 0 14px; padding-left:24px; color:#33291a; }
+  .doc li{ margin:4px 0; }
+  .doc li::marker{ color: var(--amber-deep); }
+  .doc strong{ color: var(--ink); }
+  .doc code{
+    font-family: var(--mono); font-size:.86em; background: var(--paper-deep);
+    border:1px solid var(--rule); padding:1px 5px; border-radius:4px; color:#5a3d12;
+  }
+  .doc pre{
+    background:#1F1B12; color:#F1E6C8; padding:16px 18px; border-radius:9px;
+    overflow-x:auto; font-family: var(--mono); font-size:13px; line-height:1.55;
+  }
+  .doc pre code{ background:none; border:none; color:inherit; padding:0; }
+  .doc blockquote{
+    margin:0 0 14px; padding:4px 16px; border-left:3px solid var(--amber);
+    color: var(--ink-soft); font-style:italic;
+  }
+  .doc img{ max-width:100%; height:auto; border-radius:6px; display:block; }
+
+  .img-wrap{
+    position: relative; display: inline-block;
+    max-width: 100%; line-height: 0;
+  }
+  .img-wrap img{ display:block; }
+  .img-wrap .img-handle{
+    display: none;
+    position: absolute; bottom: -5px; right: -5px;
+    width: 14px; height: 14px;
+    background: var(--amber); border: 2px solid #fff;
+    border-radius: 3px; cursor: nwse-resize;
+    box-shadow: 0 1px 4px rgba(0,0,0,.35);
+    z-index: 10;
+  }
+  .img-wrap.img-selected img{
+    outline: 2px solid var(--amber); outline-offset: 2px; border-radius: 6px;
+  }
+  .img-wrap.img-selected .img-handle{ display: block; }
+  .img-wrap .img-size-badge{
+    display: none;
+    position: absolute; bottom: 6px; left: 6px;
+    background: rgba(34,28,18,.72); color: #fff;
+    font-family: var(--mono); font-size: 10.5px;
+    padding: 2px 6px; border-radius: 4px;
+    pointer-events: none;
+  }
+  .img-wrap.img-resizing .img-size-badge{ display: block; }
+  .doc table{ border-collapse:collapse; width:100%; margin:0 0 18px; font-size:14.5px; }
+  .doc th, .doc td{ border:1px solid var(--rule-strong); padding:7px 10px; text-align:left; }
+  .doc th{ background: var(--paper-deep); font-family: var(--display); font-weight:600; }
+  .doc td a, .doc th a{ font-weight:600; }
+  .doc tr:nth-child(even) td{ background: #FCF9EF; }
+
+  .empty-state{
+    height:100%; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    text-align:center; padding:40px; gap:14px;
+  }
+  .empty-state .ticket{
+    font-family: var(--mono); font-size:11px; letter-spacing:.15em; text-transform:uppercase;
+    color: var(--amber-deep); border:1px dashed var(--rule-strong); padding:5px 12px; border-radius:20px;
+  }
+  .empty-state h2{ font-family: var(--display); font-size:24px; margin:0; max-width:420px; }
+  .empty-state p{ color: var(--ink-soft); max-width:420px; margin:0; font-size:14.5px; }
+  .empty-state .actions{ display:flex; gap:10px; margin-top:8px; flex-wrap:wrap; justify-content:center; }
+  .empty-state .hint{ font-family: var(--mono); font-size:11.5px; color: var(--rule-strong); margin-top:18px; }
+
+  .toast{
+    position:fixed; bottom:22px; right:22px;
+    background: var(--ink); color: var(--paper); font-family: var(--mono); font-size:12.5px;
+    padding:10px 16px; border-radius:8px; border-left:4px solid var(--amber);
+    box-shadow:0 8px 24px rgba(0,0,0,.25);
+    opacity:0; transform: translateY(8px); transition: opacity .2s, transform .2s;
+    pointer-events:none; z-index:50; max-width:340px;
+  }
+  .toast.show{ opacity:1; transform:translateY(0); }
+  .toast.err{ border-left-color: var(--tomato); }
+
+  /* ---------- right-click "Link…" menu + picker ---------- */
+  .ctx-menu{
+    position: fixed; z-index: 60;
+    background: var(--paper); border: 1px solid var(--rule-strong);
+    border-radius: 8px; box-shadow: 0 10px 30px rgba(0,0,0,.28);
+    padding: 4px; min-width: 140px;
+  }
+  .ctx-menu button{
+    display:flex; align-items:center; gap:8px; width:100%;
+    background:transparent; border:none; text-align:left;
+    padding:8px 10px; border-radius:6px; color: var(--ink);
+    font-family: var(--display); font-weight:600; font-size:13px;
+  }
+  .ctx-menu button:hover{ background: var(--paper-deep); }
+
+  .link-picker-overlay{
+    position: fixed; inset: 0; z-index: 61;
+    background: rgba(34,28,18,.35);
+    display:flex; align-items:center; justify-content:center;
+  }
+  .link-picker{
+    width: 420px; max-height: 68vh; display:flex; flex-direction:column;
+    background: var(--paper); border:1px solid var(--rule-strong); border-radius:12px;
+    box-shadow: 0 20px 50px rgba(0,0,0,.35); overflow:hidden;
+  }
+  .link-picker-head{ padding:14px 16px 12px; border-bottom:1px solid var(--rule); }
+  .link-picker-head .lp-title{ font-family: var(--display); font-weight:700; font-size:14px; margin:0 0 6px; }
+  .link-picker-head .lp-sub{ font-family: var(--mono); font-size:11px; color: var(--ink-soft); margin:0 0 10px; }
+  .link-picker input[type="text"]{
+    width:100%; box-sizing:border-box; padding:8px 10px; border:1px solid var(--rule-strong);
+    border-radius:7px; font-family: var(--mono); font-size:13px; background:#fff; color: var(--ink);
+  }
+  .link-picker input[type="text"]:focus{ outline:2px solid var(--amber); outline-offset:1px; }
+  .link-picker-list{ overflow-y:auto; flex:1; padding:6px; }
+  .link-picker-list .lp-item{ padding:8px 10px; border-radius:7px; cursor:pointer; }
+  .link-picker-list .lp-item:hover{ background: var(--paper-deep); }
+  .link-picker-list .lp-name{ display:block; font-weight:600; font-size:13.5px; color: var(--ink); }
+  .link-picker-list .lp-path{ display:block; font-family: var(--mono); font-size:10.5px; color: var(--ink-soft); margin-top:1px; }
+  .link-picker-list .lp-empty{ padding:24px 10px; text-align:center; color: var(--ink-soft); font-size:13px; }
+  .link-picker-foot{ display:flex; justify-content:flex-end; gap:8px; padding:10px 14px; border-top:1px solid var(--rule); background: var(--paper-deep); }
+
+  .lp-url-row{
+    padding: 10px 14px 2px;
+    border-top: 1px dashed var(--rule-strong);
+  }
+  .lp-url-label{
+    font-family: var(--mono); font-size:10.5px; letter-spacing:.07em; text-transform:uppercase;
+    color: var(--ink-soft); margin:0 0 6px; display:block;
+  }
+  .lp-url-input-wrap{ display:flex; gap:6px; align-items:center; }
+  .lp-url-input-wrap input[type="text"]{
+    flex:1; box-sizing:border-box; padding:7px 10px; border:1px solid var(--rule-strong);
+    border-radius:7px; font-family: var(--mono); font-size:12.5px; background:#fff; color: var(--ink);
+  }
+  .lp-url-input-wrap input[type="text"]:focus{ outline:2px solid var(--amber); outline-offset:1px; }
+  .lp-url-input-wrap input[type="text"]::placeholder{ color: var(--rule-strong); }
+  .lp-url-btn{
+    background: var(--amber); color:#241a05; border:none; border-radius:7px;
+    font-family: var(--display); font-weight:600; font-size:12.5px;
+    padding:7px 13px; cursor:pointer; white-space:nowrap;
+    transition: background .12s;
+  }
+  .lp-url-btn:hover{ background: var(--amber-deep); }
+  .lp-url-btn:disabled{ opacity:.4; cursor:not-allowed; }
+
+  /* double-click to source: flash the editor pane */
+  .pane-edit.source-flash{
+    animation: editor-flash 0.55s ease-out;
+  }
+  @keyframes editor-flash{
+    0%  { box-shadow: inset 0 0 0 3px var(--amber); }
+    60% { box-shadow: inset 0 0 0 3px var(--amber); }
+    100%{ box-shadow: inset 0 0 0 0px transparent; }
+  }
+
+  /* subtle cursor hint that preview paragraphs are dbl-clickable in split mode */
+  .panes.mode-split .doc p,
+  .panes.mode-split .doc h1,
+  .panes.mode-split .doc h2,
+  .panes.mode-split .doc h3,
+  .panes.mode-split .doc h4,
+  .panes.mode-split .doc li,
+  .panes.mode-split .doc blockquote,
+  .panes.mode-split .doc td,
+  .panes.mode-split .doc th {
+    cursor: text;
+  }
+  .panes.mode-split .doc p:hover,
+  .panes.mode-split .doc h1:hover,
+  .panes.mode-split .doc h2:hover,
+  .panes.mode-split .doc h3:hover,
+  .panes.mode-split .doc h4:hover,
+  .panes.mode-split .doc li:hover,
+  .panes.mode-split .doc blockquote:hover,
+  .panes.mode-split .doc td:hover,
+  .panes.mode-split .doc th:hover {
+    background: rgba(230,164,49,0.07);
+    border-radius: 3px;
+    transition: background 0.1s;
+  }
+  /* same hover hint in preview-only mode */
+  .panes.mode-preview .doc p:hover,
+  .panes.mode-preview .doc h1:hover,
+  .panes.mode-preview .doc h2:hover,
+  .panes.mode-preview .doc h3:hover,
+  .panes.mode-preview .doc h4:hover,
+  .panes.mode-preview .doc li:hover,
+  .panes.mode-preview .doc blockquote:hover {
+    background: rgba(230,164,49,0.07);
+    border-radius: 3px;
+    transition: background 0.1s;
+  }
+
+  @media (max-width: 760px){
+    .app{ grid-template-columns: 1fr; }
+    .sidebar{ display:none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <div class="topbar">
+    <div class="brand"><span class="mark">●</span>MARKDOWN<small>&nbsp;editor</small></div>
+    <div class="spacer"></div>
+    <span class="folder-name" id="folderName"></span>
+    <button class="btn btn-ghost" id="btnRefresh" style="display:none;" title="Refresh file tree">↻ Refresh Daily Notes</button>
+    <button class="btn btn-ghost" id="btnNewFile" disabled title="Create a new file">+ New file</button>
+    <button class="btn btn-amber" id="btnOpenFolder">Open folder</button>
+  </div>
+
+  <div class="sidebar">
+    <div class="sidebar-head">
+      <span>Files</span>
+      <button id="btnFallback" title="Open individual .md files (read‑only fallback)">⤓</button>
+    </div>
+    <div class="search-wrap">
+      <div class="search-input-row">
+        <span class="search-icon">⌕</span>
+        <input type="text" id="searchInput" placeholder="Search all files…" autocomplete="off" spellcheck="false">
+        <button id="searchClear" title="Clear search">✕</button>
+      </div>
+      <div class="search-index-bar">
+        <div class="index-dot" id="indexDot"></div>
+        <span id="indexStatus">No folder open</span>
+      </div>
+    </div>
+    <div id="searchResults" class="search-results"></div>
+    <div id="treeWrap" style=""><div class="empty-tree">No folder open yet. Click “Open folder” above to pick any folder with .md files — Chrome will remember it and reopen automatically next time.</div></div>
+  </div>
+
+  <div class="main">
+    <div class="tabbar" id="tabbar"></div>
+    <div class="toolbar" id="toolbar" style="display:none;">
+      <div class="segmented" id="modeSwitch">
+        <button data-mode="preview" class="active">Preview</button>
+        <button data-mode="split">Split</button>
+        <button data-mode="edit">Edit</button>
+      </div>
+      <span class="path-pill" id="activePath"></span>
+      <span class="save-status" id="saveStatus"></span>
+      <div class="spacer"></div>
+      <button class="btn btn-toggle" id="btnUndo" disabled title="Undo (Ctrl+Z)">↶ Undo</button>
+      <button class="btn btn-toggle" id="btnRedo" disabled title="Redo (Ctrl+Shift+Z or Ctrl+Y)">↷ Redo</button>
+      <button class="btn btn-toggle active" id="btnAutosave" title="Toggle autosave for files opened from a real folder">⏺ Autosave: On</button>
+      <button class="btn btn-dark" id="btnSave" disabled>Save</button>
+    </div>
+    <div class="content-area">
+      <div class="empty-state" id="emptyState">
+        <div class="ticket">Nothing open yet</div>
+        <h2>Open a folder to start browsing</h2>
+        <p>A local Markdown viewer and editor. Pick any folder with .md files — Chrome will remember it so future clicks of “Open folder” jump straight back. Click any file to read it rendered, or switch to Edit to modify it. Changes save straight back to disk.</p>
+        <div class="actions">
+          <button class="btn btn-amber" id="btnOpenFolder2">Open folder</button>
+          <button class="btn btn-ghost" id="btnFallback2" style="color:var(--ink); border-color:var(--rule-strong);">Open files instead</button>
+        </div>
+        <div class="hint" id="apiHint"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<input type="file" id="fileInputFallback" multiple accept=".md,.markdown" style="display:none;">
+<div class="toast" id="toast"></div>
+
+<script>
+(function(){
+  "use strict";
+
+  const supportsFS = 'showDirectoryPicker' in window;
+  document.getElementById('apiHint').textContent = supportsFS
+    ? 'Uses the File System Access API — edits save straight back to disk.'
+    : 'Your browser doesn’t support folder + save access. “Open files” gives a read‑view; Save will offer a download instead.';
+
+  if(!supportsFS){
+    document.getElementById('btnOpenFolder').style.display = 'none';
+    document.querySelector('#emptyState .actions .btn-amber').style.display = 'none';
+  }
+
+  // ---------- state ----------
+  let rootHandle = null;
+  let writable = false;
+  const fileMap = new Map();      // normalized path -> FileSystemFileHandle | File
+  const fileKind = new Map();     // path -> 'handle' | 'flat'  (flat = plain File, no write access)
+  let tabs = [];                  // {path, content, dirty, kind, _autosaveTimer}
+  let activeIndex = -1;
+  let mode = 'preview';
+  let autosaveEnabled = true;
+
+  const els = {
+    treeWrap: document.getElementById('treeWrap'),
+    folderName: document.getElementById('folderName'),
+    tabbar: document.getElementById('tabbar'),
+    toolbar: document.getElementById('toolbar'),
+    contentArea: document.querySelector('.content-area'),
+    emptyState: document.getElementById('emptyState'),
+    activePath: document.getElementById('activePath'),
+    saveStatus: document.getElementById('saveStatus'),
+    btnAutosave: document.getElementById('btnAutosave'),
+    btnUndo: document.getElementById('btnUndo'),
+    btnRedo: document.getElementById('btnRedo'),
+    btnSave: document.getElementById('btnSave'),
+    btnNewFile: document.getElementById('btnNewFile'),
+    toast: document.getElementById('toast'),
+  };
+
+  // ---------- BM25 full-text search ----------
+  // Index: built after folder open + background crawl
+  // Data structures: per-doc term freq maps, global IDF map, doc lengths
+  const BM25 = (function(){
+    const K1 = 1.5, B = 0.75;
+    let docs = [];        // [{path, tokens, tf, len, snippet}]
+    let idf  = new Map(); // term -> idf weight
+    let avgLen = 0;
+    let state = 'idle'; // idle | building | ready
+
+    const STOP = new Set('a an the and or but in on at to for of is are was were be been being have has had do does did will would could should may might must shall can with this that these those i me my we our you your it its'.split(' '));
+
+    function tokenize(text){
+      return text.toLowerCase()
+        .replace(/[^\w\s'-]/g, ' ')
+        .split(/\s+/)
+        .filter(t => t.length > 1 && !STOP.has(t));
+    }
+
+    function buildTF(tokens){
+      const tf = new Map();
+      for(const t of tokens) tf.set(t, (tf.get(t) || 0) + 1);
+      return tf;
+    }
+
+    function rebuildIDF(){
+      idf.clear();
+      const N = docs.length;
+      if(!N) return;
+      const df = new Map();
+      for(const d of docs){
+        for(const term of d.tf.keys()) df.set(term, (df.get(term) || 0) + 1);
+      }
+      for(const [term, n] of df) idf.set(term, Math.log((N - n + 0.5) / (n + 0.5) + 1));
+      avgLen = docs.reduce((s, d) => s + d.len, 0) / N;
+    }
+
+    function score(qTokens, doc){
+      let s = 0;
+      for(const qt of qTokens){
+        const idfW = idf.get(qt) || 0;
+        const tf  = doc.tf.get(qt) || 0;
+        const denom = tf + K1 * (1 - B + B * doc.len / (avgLen || 1));
+        s += idfW * (tf * (K1 + 1)) / denom;
+      }
+      return s;
+    }
+
+    function extractSnippet(text, qTokens, maxLen){
+      const lower = text.toLowerCase();
+      // Find best window: earliest occurrence of any query token
+      let best = -1;
+      for(const qt of qTokens){
+        const idx = lower.indexOf(qt);
+        if(idx !== -1 && (best === -1 || idx < best)) best = idx;
+      }
+      const start = Math.max(0, best - 60);
+      let snippet = (start > 0 ? '…' : '') + text.slice(start, start + maxLen);
+      if(start + maxLen < text.length) snippet += '…';
+      // Highlight matches
+      for(const qt of qTokens){
+        snippet = snippet.replace(new RegExp('(' + qt.replace(/[.*+?^${}()|[\]\\]/g,'\\$&') + ')', 'gi'), '<mark>$1</mark>');
+      }
+      return snippet;
+    }
+
+    return {
+      getState(){ return state; },
+      getCount(){ return docs.length; },
+
+      async buildIndex(fileMap, readFn, onProgress){
+        state = 'building';
+        docs = [];
+        const paths = Array.from(fileMap.keys()).filter(p => /\.(md|markdown)$/i.test(p));
+        for(let i = 0; i < paths.length; i++){
+          const path = paths[i];
+          try{
+            const text = await readFn(path);
+            const tokens = tokenize(text);
+            const tf = buildTF(tokens);
+            docs.push({ path, tokens, tf, len: tokens.length, raw: text });
+          }catch(_e){ /* skip unreadable */ }
+          if(onProgress) onProgress(i + 1, paths.length);
+          // yield every 10 files so UI stays responsive
+          if(i % 10 === 9) await new Promise(r => setTimeout(r, 0));
+        }
+        rebuildIDF();
+        state = 'ready';
+        return docs.length;
+      },
+
+      addOrUpdate(path, text){
+        if(state !== 'ready') return;
+        const tokens = tokenize(text);
+        const tf = buildTF(tokens);
+        const idx = docs.findIndex(d => d.path === path);
+        if(idx !== -1) docs[idx] = { path, tokens, tf, len: tokens.length, raw: text };
+        else docs.push({ path, tokens, tf, len: tokens.length, raw: text });
+        rebuildIDF();
+      },
+
+      remove(path){
+        docs = docs.filter(d => d.path !== path);
+        if(docs.length) rebuildIDF();
+      },
+
+      search(query, topN = 10){
+        if(state !== 'ready' || !query.trim()) return [];
+        const qTokens = tokenize(query);
+        if(!qTokens.length) return [];
+        this.lastQueryTokens = qTokens;
+        const scored = docs
+          .map(d => ({ path: d.path, score: score(qTokens, d), raw: d.raw }))
+          .filter(r => r.score > 0)
+          .sort((a, b) => b.score - a.score)
+          .slice(0, topN);
+        return scored.map(r => ({
+          path: r.path,
+          score: r.score,
+          snippet: extractSnippet(r.raw, qTokens, 140),
+        }));
+      },
+    };
+  })();
+
+  // ---------- Search UI ----------
+  const searchInput   = document.getElementById('searchInput');
+  const searchClear   = document.getElementById('searchClear');
+  const searchResults = document.getElementById('searchResults');
+  const indexDot      = document.getElementById('indexDot');
+  const indexStatus   = document.getElementById('indexStatus');
+
+  function setIndexUI(s, label){
+    indexDot.className = 'index-dot ' + (s === 'ready' ? 'ready' : s === 'building' ? 'busy' : '');
+    indexStatus.textContent = label;
+  }
+
+  async function triggerBuildIndex(){
+    if(!rootHandle) return;
+    const paths = Array.from(fileMap.keys()).filter(p => /\.(md|markdown)$/i.test(p));
+    if(!paths.length) return;
+    setIndexUI('building', 'Indexing…');
+    const count = await BM25.buildIndex(fileMap, readPath, (done, total) => {
+      setIndexUI('building', `Indexing ${done}/${total}…`);
+    });
+    setIndexUI('ready', count + ' file' + (count !== 1 ? 's' : '') + ' indexed');
+    if(searchInput.value.trim()) runSearch(searchInput.value);
+  }
+
+  function runSearch(query){
+    query = query.trim();
+    searchClear.classList.toggle('visible', query.length > 0);
+    if(!query){
+      searchResults.className = 'search-results';
+      searchResults.innerHTML = '';
+      els.treeWrap.style.display = '';
+      return;
+    }
+    els.treeWrap.style.display = 'none';
+    searchResults.className = 'search-results visible';
+
+    if(BM25.getState() !== 'ready'){
+      searchResults.innerHTML = `<div class="sr-empty">${BM25.getState() === 'building' ? 'Still indexing…' : 'Open a folder to enable search.'}</div>`;
+      return;
+    }
+    const results = BM25.search(query, 12);
+    if(!results.length){
+      searchResults.innerHTML = `<div class="sr-empty">No results for "<strong>${escapeHtml(query)}</strong>"</div>`;
+      return;
+    }
+    const activeTab = tabs[activeIndex];
+    searchResults.innerHTML = results.map((r, i) => {
+      const name = r.path.split('/').pop().replace(/\.(md|markdown)$/i, '');
+      const dir  = r.path.includes('/') ? r.path.slice(0, r.path.lastIndexOf('/')) : '';
+      const isActive = activeTab && activeTab.path === r.path;
+      return `<div class="sr-item${isActive ? ' sr-active' : ''}" data-path="${escapeHtml(r.path)}">
+        <div class="sr-name"><span class="sr-score">${r.score.toFixed(1)}</span>${escapeHtml(name)}</div>
+        ${dir ? `<div class="sr-path">${escapeHtml(dir)}/</div>` : ''}
+        <div class="sr-snippet">${r.snippet}</div>
+      </div>`;
+    }).join('');
+
+    searchResults.querySelectorAll('.sr-item').forEach(el => {
+      el.addEventListener('click', () => {
+        const terms = BM25.lastQueryTokens || [];
+        const alreadyOpen = tabs[activeIndex] && tabs[activeIndex].path === el.dataset.path;
+        pendingSearchTerms = terms.length ? terms : null;
+        if(alreadyOpen && pendingSearchTerms){
+          // file already rendered — highlight immediately
+          const t = pendingSearchTerms;
+          pendingSearchTerms = null;
+          requestAnimationFrame(() => highlightSearchTermsInPreview(t));
+        } else {
+          openFile(el.dataset.path);
+        }
+      });
+    });
+  }
+
+  let searchDebounce;
+  searchInput.addEventListener('input', () => {
+    clearTimeout(searchDebounce);
+    searchDebounce = setTimeout(() => runSearch(searchInput.value), 180);
+  });
+  searchInput.addEventListener('keydown', e => {
+    if(e.key === 'Escape'){ searchInput.value = ''; runSearch(''); searchInput.blur(); }
+  });
+  searchClear.addEventListener('click', () => { searchInput.value = ''; runSearch(''); searchInput.focus(); });
+
+  // Keyboard shortcut: Ctrl/Cmd+F focuses the search
+  document.addEventListener('keydown', e => {
+    if((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'f'){
+      const ae = document.activeElement;
+      if(ae === searchInput) return; // already focused — don't prevent browser find
+      if(ae && (ae.tagName === 'TEXTAREA')) return; // let editor use its own find
+      e.preventDefault();
+      searchInput.focus(); searchInput.select();
+    }
+  });
+
+  // ---------- in-page search highlight ----------
+  let pendingSearchTerms = null; // set before openFile, consumed by renderActive
+
+  function highlightSearchTermsInPreview(terms){
+    if(!previewEl || !terms || !terms.length) return;
+    const STOP = new Set('a an the and or but in on at to for of is are was were be been being have has had do does did will would could should may might must shall can with this that these those i me my we our you your it its'.split(' '));
+    const filtered = terms.filter(t => t.length > 1 && !STOP.has(t));
+    if(!filtered.length) return;
+
+    const pattern = new RegExp('(' + filtered.map(t => t.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')).join('|') + ')', 'gi');
+
+    // Walk text nodes inside the preview, skip code blocks
+    function walkTextNodes(node, cb){
+      if(node.nodeType === Node.TEXT_NODE){ cb(node); return; }
+      if(node.nodeName === 'CODE' || node.nodeName === 'PRE') return;
+      for(const child of Array.from(node.childNodes)) walkTextNodes(child, cb);
+    }
+
+    const textNodes = [];
+    walkTextNodes(previewEl, n => { if(pattern.test(n.textContent)){ pattern.lastIndex=0; textNodes.push(n); } });
+    pattern.lastIndex = 0;
+
+    let firstMark = null;
+    for(const node of textNodes){
+      const text = node.textContent;
+      if(!pattern.test(text)){ pattern.lastIndex=0; continue; }
+      pattern.lastIndex = 0;
+      const frag = document.createDocumentFragment();
+      let last = 0, m;
+      while((m = pattern.exec(text)) !== null){
+        if(m.index > last) frag.appendChild(document.createTextNode(text.slice(last, m.index)));
+        const mark = document.createElement('mark');
+        mark.className = 'search-hl';
+        mark.textContent = m[0];
+        if(!firstMark){ mark.classList.add('first-match'); firstMark = mark; }
+        frag.appendChild(mark);
+        last = m.index + m[0].length;
+      }
+      if(last < text.length) frag.appendChild(document.createTextNode(text.slice(last)));
+      node.parentNode.replaceChild(frag, node);
+    }
+
+    if(firstMark){
+      // scroll into view with a little breathing room
+      firstMark.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      // fade out after 2.5s
+      setTimeout(() => {
+        previewEl.querySelectorAll('mark.search-hl').forEach(m => m.classList.add('fading'));
+        // remove marks entirely after transition completes so DOM stays clean
+        setTimeout(() => {
+          previewEl.querySelectorAll('mark.search-hl').forEach(m => {
+            const parent = m.parentNode;
+            if(!parent) return;
+            parent.replaceChild(document.createTextNode(m.textContent), m);
+            parent.normalize();
+          });
+        }, 1400);
+      }, 2500);
+    }
+  }
+
+
+  function toast(msg, isErr){
+    els.toast.textContent = msg;
+    els.toast.className = 'toast show' + (isErr ? ' err' : '');
+    clearTimeout(toast._t);
+    toast._t = setTimeout(()=> els.toast.className = 'toast', 2400);
+  }
+
+  function escapeHtml(s){
+    return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+
+  // ---------- path helpers ----------
+  function normalize(path){
+    const parts = path.split('/');
+    const stack = [];
+    for(const p of parts){
+      if(p === '' || p === '.') continue;
+      if(p === '..') stack.pop();
+      else stack.push(p);
+    }
+    return stack.join('/');
+  }
+  function resolveRelative(basePath, rel){
+    rel = rel.split('#')[0].split('?')[0];
+    if(!rel) return basePath;
+    const baseDir = basePath.includes('/') ? basePath.slice(0, basePath.lastIndexOf('/') + 1) : '';
+    return normalize(baseDir + rel);
+  }
+  function slugify(text){
+    return text.toLowerCase().trim().replace(/[^\w\- ]+/g, '').replace(/\s+/g, '-');
+  }
+  function dirnameOf(path){
+    const i = path.lastIndexOf('/');
+    return i === -1 ? '' : path.slice(0, i);
+  }
+  // Build a "./" or "../" style path from fromDir to toPath, both given relative to the folder root.
+  function relativeFromDir(fromDir, toPath){
+    const fromParts = fromDir ? fromDir.split('/').filter(Boolean) : [];
+    const toParts = toPath.split('/').filter(Boolean);
+    let i = 0;
+    while(i < fromParts.length && i < toParts.length && fromParts[i] === toParts[i]) i++;
+    const ups = fromParts.length - i;
+    const downs = toParts.slice(i);
+    return ups === 0 ? './' + downs.join('/') : '../'.repeat(ups) + downs.join('/');
+  }
+  function activeFileDir(){
+    const t = tabs[activeIndex];
+    return t ? dirnameOf(t.path) : '';
+  }
+
+  // ---------- folder / tree ----------
+  // ---------- IndexedDB handle persistence ----------
+  // FileSystemDirectoryHandle objects can be stored in IDB (not localStorage).
+  // On reload we retrieve it and call requestPermission() — Chrome re-opens
+  // silently with no file picker if the user already granted persistent access.
+
+  function openHandleDB(){
+    return new Promise((resolve, reject) => {
+      const req = indexedDB.open('md-editor-v1', 1);
+      req.onupgradeneeded = e => e.target.result.createObjectStore('handles');
+      req.onsuccess = e => resolve(e.target.result);
+      req.onerror = () => reject(req.error);
+    });
+  }
+  async function saveHandleToDB(handle){
+    try{
+      const db = await openHandleDB();
+      const tx = db.transaction('handles', 'readwrite');
+      tx.objectStore('handles').put(handle, 'root');
+      await new Promise((res, rej) => { tx.oncomplete = res; tx.onerror = () => rej(tx.error); });
+    }catch(e){ /* non-fatal */ }
+  }
+  async function loadHandleFromDB(){
+    try{
+      const db = await openHandleDB();
+      const tx = db.transaction('handles', 'readonly');
+      return await new Promise((res, rej) => {
+        const req = tx.objectStore('handles').get('root');
+        req.onsuccess = () => res(req.result || null);
+        req.onerror = () => rej(req.error);
+      });
+    }catch(e){ return null; }
+  }
+
+  async function applyRootHandle(handle){
+    rootHandle = handle;
+    writable = true;
+    fileMap.clear(); fileKind.clear();
+    els.folderName.textContent = rootHandle.name;
+    setIndexUI('', 'Waiting for folder…');
+    document.getElementById('btnNewFile').disabled = false;
+    document.getElementById('btnRefresh').style.display =
+      'none';
+    const tree = await walkShallow(rootHandle, '');
+    renderTree(tree);
+    els.emptyState.style.display = 'none';
+    // kick off BM25 index build (runs in background after crawl populates fileMap)
+    setTimeout(triggerBuildIndex, 400);
+  }
+
+  // On load: try to restore the previously opened folder silently.
+  // requestPermission() returns 'granted' with no UI if the user already
+  // allowed this origin — otherwise we just wait for them to click Open folder.
+  async function tryRestoreFolder(){
+    if(!supportsFS) return;
+    const handle = await loadHandleFromDB();
+    if(!handle) return;
+    try{
+      const perm = await handle.requestPermission({ mode: 'readwrite' });
+      if(perm !== 'granted') return;
+      await applyRootHandle(handle);
+    }catch(e){ /* stale handle or denied — user opens manually */ }
+  }
+  tryRestoreFolder();
+
+  async function pickFolder(){
+    try{
+      rootHandle = await window.showDirectoryPicker({ mode: 'readwrite', id: 'md-editor-folder-v1' });
+    }catch(e){
+      if(e.name === 'AbortError') return;
+      toast('Could not open folder: ' + e.message, true);
+      return;
+    }
+    await saveHandleToDB(rootHandle);
+    await applyRootHandle(rootHandle);
+    toast('Opened: ' + rootHandle.name);
+  }
+
+  // Shallow scan: reads only direct children of dirHandle.
+  // Subdirectories are registered but not recursed into — they load lazily on expand.
+  async function walkShallow(dirHandle, prefix){
+    const node = { name: dirHandle.name, type: 'dir', children: [], handle: dirHandle, prefix };
+    const entries = [];
+    for await (const entry of dirHandle.values()) entries.push(entry);
+    entries.sort((a, b) => (a.kind === b.kind) ? a.name.localeCompare(b.name) : (a.kind === 'directory' ? -1 : 1));
+    for(const entry of entries){
+      if(entry.name.startsWith('.')) continue;
+      if(entry.kind === 'directory'){
+        // Add a stub dir node — children will be loaded on first expand
+        node.children.push({ name: entry.name, type: 'dir', children: null, handle: entry, prefix: prefix + entry.name + '/', loaded: false });
+      }else if(/\.(md|markdown)$/i.test(entry.name)){
+        const path = prefix + entry.name;
+        fileMap.set(path, entry);
+        fileKind.set(path, 'handle');
+        node.children.push({ name: entry.name, type: 'file', path });
+      }else if(/\.(png|jpg|jpeg|gif|webp|svg)$/i.test(entry.name)){
+        const path = prefix + entry.name;
+        fileMap.set(path, entry);
+        fileKind.set(path, 'handle');
+        // image files don't appear in the sidebar tree, just the map
+      }
+    }
+    return node;
+  }
+
+  // Lazily load a stub dir node when the user expands it.
+  async function loadDirNode(stubNode){
+    if(stubNode.loaded) return;
+    stubNode.loaded = true;
+    const entries = [];
+    for await (const entry of stubNode.handle.values()) entries.push(entry);
+    entries.sort((a, b) => (a.kind === b.kind) ? a.name.localeCompare(b.name) : (a.kind === 'directory' ? -1 : 1));
+    stubNode.children = [];
+    for(const entry of entries){
+      if(entry.name.startsWith('.')) continue;
+      if(entry.kind === 'directory'){
+        stubNode.children.push({ name: entry.name, type: 'dir', children: null, handle: entry, prefix: stubNode.prefix + entry.name + '/', loaded: false });
+      }else if(/\.(md|markdown)$/i.test(entry.name)){
+        const path = stubNode.prefix + entry.name;
+        fileMap.set(path, entry);
+        fileKind.set(path, 'handle');
+        stubNode.children.push({ name: entry.name, type: 'file', path });
+      }else if(/\.(png|jpg|jpeg|gif|webp|svg)$/i.test(entry.name)){
+        const path = stubNode.prefix + entry.name;
+        fileMap.set(path, entry);
+        fileKind.set(path, 'handle');
+      }
+    }
+  }
+
+  // nodeRegistry maps dir-node IDs to their stub objects so expand events can trigger lazy loads.
+  const nodeRegistry = new Map();
+  let _nodeIdCounter = 0;
+
+  // ---------- background idle crawl ----------
+  // After the tree renders, walk all unloaded stub dirs during idle time.
+  // Any dir that turns out empty gets silently pruned from the DOM.
+  let _bgCrawlHandle = null;
+
+  function startBackgroundCrawl(){
+    if(_bgCrawlHandle) cancelIdleCallback(_bgCrawlHandle);
+    const queue = [...nodeRegistry.values()].filter(n => n.type === 'dir' && !n.loaded);
+    if(!queue.length) return;
+    scheduleBgChunk(queue);
+  }
+
+  function scheduleBgChunk(queue){
+    if(!queue.length) return;
+    _bgCrawlHandle = requestIdleCallback(async (deadline) => {
+      while(queue.length && deadline.timeRemaining() > 4){
+        const node = queue.shift();
+        if(node.loaded) continue; // user already expanded it, skip
+        await loadDirNode(node);
+
+        // Find this node's <details> element in the DOM
+        let detailsEl = null;
+        for(const [id, n] of nodeRegistry.entries()){
+          if(n === node){ detailsEl = els.treeWrap.querySelector('details[data-dirid="' + id + '"]'); break; }
+        }
+        if(!detailsEl) continue;
+
+        if(!node.children.length){
+          // Empty — prune silently
+          const li = detailsEl.closest('li.dir');
+          if(li) li.remove();
+        } else {
+          // Has content — rewrite the placeholder ul so it is ready when expanded
+          const ul = detailsEl.querySelector('ul');
+          if(ul && !detailsEl.open && ul.querySelector('li[style*="pointer-events:none"]')){
+            ul.innerHTML = node.children.map(renderTreeNode).join('');
+            attachLazyListeners(ul);
+          }
+          // Enqueue any new child stubs
+          for(const child of node.children){
+            if(child.type === 'dir' && !child.loaded) queue.push(child);
+          }
+        }
+      }
+      if(queue.length) scheduleBgChunk(queue);
+    }, { timeout: 8000 });
+  }
+
+  function renderTreeNode(node){
+    if(node.type === 'file'){
+      return `<li class="file" data-path="${escapeHtml(node.path)}">${escapeHtml(node.name.replace(/\.(md|markdown)$/i,''))}</li>`;
+    }
+    // Dir node — may be a stub (children === null) or already loaded
+    const id = 'dn-' + (++_nodeIdCounter);
+    nodeRegistry.set(id, node);
+    // children === null means stub (not yet loaded); show a spinner placeholder that gets replaced on expand
+    const innerHtml = node.children === null
+      ? '<li class="file" style="color:var(--rule-strong);cursor:default;border-left:none;pointer-events:none;">···</li>'
+      : node.children.map(renderTreeNode).join('');
+    // Subdirs start collapsed (no "open" attr) so they only load when the user expands them
+    return `<li class="dir"><details data-dirid="${id}"><summary>${escapeHtml(node.name)}</summary><ul>${innerHtml}</ul></details></li>`;
+  }
+
+  function renderTree(tree){
+    if(!tree.children.length){
+      els.treeWrap.innerHTML = '<div class="empty-tree">No .md files found in this folder.</div>';
+      return;
+    }
+    nodeRegistry.clear();
+    _nodeIdCounter = 0;
+    els.treeWrap.innerHTML = `<ul class="tree">${tree.children.map(renderTreeNode).join('')}</ul>`;
+    attachLazyListeners(els.treeWrap);
+    highlightActiveInTree();
+    // Kick off background pruning after a short yield so the UI paints first
+    setTimeout(startBackgroundCrawl, 300);
+  }
+
+  // Attach toggle listeners to all <details> elements so we can lazy-load on first open.
+  function attachLazyListeners(container){
+    container.querySelectorAll('details[data-dirid]').forEach(details => {
+      details.addEventListener('toggle', async function onToggle(){
+        if(!details.open) return;
+        const id = details.dataset.dirid;
+        const node = nodeRegistry.get(id);
+        if(!node || node.loaded) return;
+        await loadDirNode(node);
+        // Re-render the <ul> inside this details now that children are populated
+        const ul = details.querySelector('ul');
+        if(ul){
+          if(!node.children.length){
+            // No md files in this folder — remove it from the sidebar entirely
+            const li = details.closest('li.dir');
+            if(li) li.remove();
+            return;
+          }
+          ul.innerHTML = node.children.map(renderTreeNode).join('');
+          attachLazyListeners(ul);
+          highlightActiveInTree();
+        }
+      });
+    });
+  }
+  function highlightActiveInTree(){
+    const active = tabs[activeIndex];
+    els.treeWrap.querySelectorAll('li.file').forEach(li=>{
+      li.classList.toggle('active', !!active && li.dataset.path === active.path);
+    });
+  }
+  els.treeWrap.addEventListener('click', e=>{
+    const li = e.target.closest('li.file');
+    if(li) openFile(li.dataset.path);
+  });
+
+  // ---------- fallback flat-file open ----------
+  document.getElementById('fileInputFallback').addEventListener('change', async (e)=>{
+    const files = Array.from(e.target.files || []);
+    rootHandle = null;
+    document.getElementById('btnRefresh').style.display = 'none';
+    document.getElementById('btnNewFile').disabled = true;
+    for(const f of files){
+      const path = f.webkitRelativePath || f.name;
+      fileMap.set(path, f);
+      fileKind.set(path, 'flat');
+    }
+    if(files.length){
+      const tree = { children: buildFlatTree(Array.from(fileMap.keys())) };
+      renderTree(tree);
+      openFile(files[0].webkitRelativePath || files[0].name);
+      toast(files.length + ' file(s) loaded (read‑only — Save will download a copy)');
+      setTimeout(triggerBuildIndex, 200);
+    }
+    e.target.value = '';
+  });
+  function buildFlatTree(paths){
+    const root = [];
+    const dirIndex = {};
+    for(const p of paths.sort()){
+      const parts = p.split('/');
+      let level = root, idx = dirIndex;
+      for(let i=0;i<parts.length-1;i++){
+        const key = parts.slice(0,i+1).join('/');
+        if(!idx[key]){
+          const dirNode = { name: parts[i], type:'dir', children: [] };
+          level.push(dirNode); idx[key] = dirNode;
+        }
+        level = idx[key].children;
+      }
+      level.push({ name: parts[parts.length-1], type:'file', path: p });
+    }
+    return root;
+  }
+  function openFallbackPicker(){ document.getElementById('fileInputFallback').click(); }
+  document.getElementById('btnFallback').addEventListener('click', openFallbackPicker);
+  document.getElementById('btnFallback2').addEventListener('click', openFallbackPicker);
+  document.getElementById('btnOpenFolder').addEventListener('click', pickFolder);
+  document.getElementById('btnOpenFolder2').addEventListener('click', pickFolder);
+
+  // ---------- tabs / open / read / write ----------
+  async function readPath(path){
+    const handle = fileMap.get(path);
+    if(!handle) throw new Error('not found');
+    if(fileKind.get(path) === 'handle'){
+      const file = await handle.getFile();
+      return await file.text();
+    }
+    return await handle.text();
+  }
+
+  async function openFile(path){
+    let idx = tabs.findIndex(t => t.path === path);
+    if(idx === -1){
+      let content;
+      try{ content = await readPath(path); }
+      catch(e){ toast('Could not read ' + path, true); return; }
+      tabs.push({ path, content, dirty: false, kind: fileKind.get(path), undo: [], redo: [], lastEditAt: 0 });
+      idx = tabs.length - 1;
+    }
+    activeIndex = idx;
+    els.emptyState.style.display = 'none';
+    els.toolbar.style.display = 'flex';
+    renderTabbar();
+    renderActive();
+    highlightActiveInTree();
+  }
+
+  async function openOrCreate(path){
+    if(fileMap.has(path)){ openFile(path); return; }
+    if(!rootHandle){ toast('Open a folder first to create “' + path + '”', true); return; }
+    if(confirm('“' + path + '” doesn't exist yet. Create it?')){
+      try{
+        await createFileAtPath(path, '# ' + path.split('/').pop().replace(/\.(md|markdown)$/i,'') + '\n\n');
+        openFile(path);
+      }catch(e){ toast('Could not create file: ' + e.message, true); }
+    }
+  }
+
+  async function createFileAtPath(path, initialContent){
+    const parts = path.split('/').filter(Boolean);
+    let dir = rootHandle;
+    for(let i=0;i<parts.length-1;i++) dir = await dir.getDirectoryHandle(parts[i], { create: true });
+    const handle = await dir.getFileHandle(parts[parts.length-1], { create: true });
+    const w = await handle.createWritable();
+    await w.write(initialContent || '');
+    await w.close();
+    fileMap.set(path, handle);
+    fileKind.set(path, 'handle');
+    const tree = await walkShallow(rootHandle, '');
+    renderTree(tree);
+    toast('Created ' + path);
+  }
+
+  document.getElementById('btnNewFile').addEventListener('click', async ()=>{
+    const rel = prompt('Path for new file (e.g. meeting-notes/6-17-2026.md):');
+    if(!rel) return;
+    try{ await createFileAtPath(normalize(rel), '# ' + rel.split('/').pop().replace(/\.(md|markdown)$/i,'') + '\n\n'); openFile(normalize(rel)); }
+    catch(e){ toast('Could not create file: ' + e.message, true); }
+  });
+
+  // ---------- calendar refresh (port of resources/update_calendar.py) ----------
+    async function refreshDailyNotes(){
+    if(!rootHandle) return;
+    try{
+      const tree = await walkShallow(rootHandle, '');
+      renderTree(tree);
+      setTimeout(triggerBuildIndex, 400);
+      toast('File tree refreshed');
+    }catch(e){
+      toast('Refresh failed: ' + e.message, true);
+    }
+  }
+  document.getElementById('btnRefresh').addEventListener('click', refreshDailyNotes);
+
+  function closeTab(idx, e){
+    if(e) e.stopPropagation();
+    const t = tabs[idx];
+    if(t.dirty && !confirm('Discard unsaved changes to ' + t.path + '?')) return;
+    clearTimeout(t._autosaveTimer);
+    tabs.splice(idx, 1);
+    if(activeIndex === idx) activeIndex = Math.min(idx, tabs.length - 1);
+    else if(activeIndex > idx) activeIndex--;
+    renderTabbar();
+    if(activeIndex === -1){
+      els.toolbar.style.display = 'none';
+      els.emptyState.style.display = 'flex';
+    }else renderActive();
+    highlightActiveInTree();
+  }
+
+  function renderTabbar(){
+    els.tabbar.innerHTML = tabs.map((t, i)=>{
+      const name = t.path.split('/').pop();
+      return `<div class="tab ${i===activeIndex?'active':''} ${t.dirty?'dirty':''}" data-idx="${i}">
+        <span class="dot"></span>${escapeHtml(name)}<span class="x" data-close="${i}">✕</span>
+      </div>`;
+    }).join('');
+    els.tabbar.querySelectorAll('.tab').forEach(el=>{
+      el.addEventListener('click', ()=>{ activeIndex = +el.dataset.idx; renderTabbar(); renderActive(); highlightActiveInTree(); });
+    });
+    els.tabbar.querySelectorAll('.x').forEach(el=>{
+      el.addEventListener('click', (e)=> closeTab(+el.dataset.close, e));
+    });
+  }
+
+  // ---------- preview / edit panes ----------
+  const contentArea = els.contentArea;
+  let panesEl, editorEl, previewEl, previewScrollEl;
+  let syncingScroll = false;
+
+  function scrollRatio(el){
+    const max = el.scrollHeight - el.clientHeight;
+    return max > 0 ? el.scrollTop / max : 0;
+  }
+  function applyScrollRatio(el, ratio){
+    const max = el.scrollHeight - el.clientHeight;
+    el.scrollTop = max > 0 ? ratio * max : 0;
+  }
+  function syncScrollFrom(sourceEl, targetEl){
+    if(mode !== 'split' || syncingScroll) return;
+    syncingScroll = true;
+    applyScrollRatio(targetEl, scrollRatio(sourceEl));
+    requestAnimationFrame(()=>{ syncingScroll = false; });
+  }
+
+  function ensurePanes(){
+    if(panesEl) return;
+    panesEl = document.createElement('div');
+    panesEl.className = 'panes mode-preview';
+    panesEl.innerHTML = `
+      <div class="pane-edit"><textarea id="editor" spellcheck="false"></textarea></div>
+      <div class="pane-preview"><div class="doc" id="docRoot"></div></div>`;
+    contentArea.appendChild(panesEl);
+    editorEl = panesEl.querySelector('#editor');
+    previewEl = panesEl.querySelector('#docRoot');
+    previewScrollEl = panesEl.querySelector('.pane-preview');
+    editorEl.addEventListener('input', (ev)=>{
+      const t = tabs[activeIndex];
+      if(!t) return;
+
+      // Auto-replace --> or -> with → as you type
+      // Only fires on insertText so it doesn't loop on programmatic changes
+      if(ev.inputType === 'insertText'){
+        const pos = editorEl.selectionStart;
+        const val = editorEl.value;
+        // Check for --> (3 chars) first, then -> (2 chars)
+        const before3 = pos >= 3 ? val.slice(pos - 3, pos) : null;
+        const before2 = pos >= 2 ? val.slice(pos - 2, pos) : null;
+        if(before3 === '-->'){
+          const newVal = val.slice(0, pos - 3) + '→' + val.slice(pos);
+          editorEl.value = newVal;
+          const newPos = pos - 3 + 1;
+          editorEl.setSelectionRange(newPos, newPos);
+        } else if(before2 === '->'){
+          const newVal = val.slice(0, pos - 2) + '→' + val.slice(pos);
+          editorEl.value = newVal;
+          const newPos = pos - 2 + 1;
+          editorEl.setSelectionRange(newPos, newPos);
+        }
+      }
+
+      commitContent(t, editorEl.value);
+      renderTabbar();
+      updateSaveStatus();
+      if(mode === 'split') debouncedRenderPreview();
+      scheduleAutosave(t);
+      scheduleTocUpdate(t);
+    });
+    previewEl.addEventListener('click', onPreviewClick);
+    previewEl.addEventListener('click', handlePreviewImgClick);
+    previewEl.addEventListener('mousedown', e=>{ if(!e.target.closest('.img-wrap')) deselectImg(); });
+    previewEl.addEventListener('contextmenu', handleDocLinkMenu);
+    previewEl.addEventListener('dblclick', handlePreviewDblClick);
+    editorEl.addEventListener('scroll', ()=> syncScrollFrom(editorEl, previewScrollEl));
+    editorEl.addEventListener('keydown', handleEditorTab);
+    editorEl.addEventListener('keydown', handleEditorBold);
+    editorEl.addEventListener('keydown', handleEditorEnter);
+    editorEl.addEventListener('keydown', handleEditorUndoRedo);
+    editorEl.addEventListener('contextmenu', handleEditorLinkMenu);
+    editorEl.addEventListener('paste', handleEditorImagePaste);
+    editorEl.addEventListener('dragover', handleEditorDragOver);
+    editorEl.addEventListener('dragleave', handleEditorDragLeave);
+    editorEl.addEventListener('drop', handleEditorDrop);
+    previewScrollEl.addEventListener('scroll', ()=> syncScrollFrom(previewScrollEl, editorEl));
+  }
+
+  let debounceTimer;
+  function debouncedRenderPreview(){
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(renderPreviewOnly, 160);
+  }
+
+  // ---------- Auto Table of Contents ----------
+  // Fires 2s after you stop typing. Finds "## Table of Contents" (any case),
+  // replaces everything between it and the next ## heading (or end of section)
+  // with a freshly generated list. Preserves cursor position in the textarea.
+
+  let tocTimer = null;
+
+  function scheduleTocUpdate(t){
+    clearTimeout(tocTimer);
+    tocTimer = setTimeout(()=> performTocUpdate(t), 2000);
+  }
+
+  function buildTocLines(content){
+    const lines = content.split('\n');
+    const entries = [];
+    let inToc = false, inFence = false;
+    const tocRe = /^#{1,6}\s+table\s+of\s+contents\s*$/i;
+
+    for(const line of lines){
+      if(/^```/.test(line)){ inFence = !inFence; continue; }
+      if(inFence) continue;
+      if(tocRe.test(line.trim())){ inToc = true; continue; }
+      if(inToc){
+        const m = line.match(/^(#{1,6})\s+(.+)/);
+        if(!m) continue;
+        const level = m[1].length;
+        const text  = m[2].trim();
+        // anchor matches the slugify() already used in renderPreviewOnly
+        const anchor = text.toLowerCase().trim().replace(/[^\w\- ]+/g, '').replace(/\s+/g, '-');
+        const indent = '  '.repeat(Math.max(0, level - 2)); // h2 = no indent, h3 = 2 spaces, etc.
+        entries.push(indent + '- [' + text + '](#' + anchor + ')');
+      }
+    }
+    return entries;
+  }
+
+  function performTocUpdate(t){
+    if(!t) return;
+    const content = t.content;
+
+    // Find the TOC heading line
+    const lines = content.split('\n');
+    let tocLineIdx = -1;
+    let inFence = false;
+    const tocRe = /^#{1,6}\s+table\s+of\s+contents\s*$/i;
+    for(let i = 0; i < lines.length; i++){
+      if(/^```/.test(lines[i])){ inFence = !inFence; continue; }
+      if(!inFence && tocRe.test(lines[i].trim())){ tocLineIdx = i; break; }
+    }
+    if(tocLineIdx === -1) return; // no TOC section — nothing to do
+
+    // Find where the existing TOC entries end: from tocLineIdx+1 up to
+    // the next heading line (##+ ) or a blank line followed by non-list content
+    let tocEndIdx = tocLineIdx + 1;
+    while(tocEndIdx < lines.length){
+      const l = lines[tocEndIdx];
+      // stop at a heading that isn't a list item
+      if(/^#{1,6}\s/.test(l)) break;
+      // stop at non-empty, non-list line (allows blank lines between entries)
+      if(l.trim() !== '' && !/^\s*-\s/.test(l)) break;
+      tocEndIdx++;
+    }
+
+    const newEntries = buildTocLines(content);
+    if(!newEntries.length) return;
+
+    // Build replacement block: blank line after heading, entries, blank line before next section
+    const newBlock = lines[tocLineIdx] + '\n' + newEntries.join('\n');
+
+    // Stitch back together
+    const before = lines.slice(0, tocLineIdx).join('\n');
+    const after  = lines.slice(tocEndIdx).join('\n');
+    const newContent = (before ? before + '\n' : '') + newBlock + (after ? '\n' + after : '');
+
+    if(newContent === content) return; // nothing changed
+
+    // Preserve textarea scroll & cursor
+    const ta = editorEl;
+    const selStart = ta ? ta.selectionStart : 0;
+    const selEnd   = ta ? ta.selectionEnd   : 0;
+    const scrollTop = ta ? ta.scrollTop : 0;
+
+    commitContent(t, newContent, { immediate: true });
+    renderTabbar();
+    updateSaveStatus();
+    scheduleAutosave(t);
+    if(mode === 'split' || mode === 'preview') renderPreviewOnly();
+
+    // Restore cursor — offset may shift if TOC is above the cursor
+    if(ta){
+      const inserted = newContent.length - content.length;
+      const tocStart = (before ? before.length + 1 : 0);
+      const adjust = selStart > tocStart ? inserted : 0;
+      ta.setSelectionRange(selStart + adjust, selEnd + adjust);
+      ta.scrollTop = scrollTop;
+    }
+  }
+
+  // ---------- Tab = indent, Shift+Tab = outdent (instead of changing focus) ----------
+  const INDENT = '  ';
+  function isListLine(line){ return /^\s*([-*+]|\d+\.)\s/.test(line); }
+
+  function insertAtCursor(ta, text){
+    const used = document.execCommand && document.execCommand('insertText', false, text);
+    if(!used){
+      const s = ta.selectionStart, e = ta.selectionEnd;
+      if(ta.setRangeText) ta.setRangeText(text, s, e, 'end');
+      else { ta.value = ta.value.slice(0, s) + text + ta.value.slice(e); ta.selectionStart = ta.selectionEnd = s + text.length; }
+      ta.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+  }
+
+  // ---------- Ctrl/Cmd+B = wrap selection in **bold**, or insert ** ** with cursor between ----------
+  function handleEditorBold(e){
+    const mod = e.ctrlKey || e.metaKey;
+    if(!mod || e.key.toLowerCase() !== 'b') return;
+    e.preventDefault();
+    const ta = e.target;
+    const start = ta.selectionStart, end = ta.selectionEnd;
+    const selected = ta.value.slice(start, end);
+    forceUndoBoundary = true;
+    if(selected){
+      insertAtCursor(ta, '**' + selected + '**');
+      ta.setSelectionRange(start + 2, start + 2 + selected.length); // keep the bolded text selected
+    } else {
+      insertAtCursor(ta, '****');
+      ta.setSelectionRange(start + 2, start + 2); // cursor sits between the asterisks
+    }
+  }
+
+  // ---------- Enter = continue list item on the current line ----------
+  // • If the current line is a bullet (- / * / +) or numbered list item with content → add matching prefix
+  // • If the current line is a bullet/numbered item with NO content (just the prefix) → remove the empty item (exit the list)
+  // • Shift+Enter is always passed through as a plain newline so the user can escape at any time
+  function handleEditorEnter(e){
+    if(e.key !== 'Enter' || e.shiftKey) return;
+    const ta = e.target;
+    const value = ta.value;
+    const pos = ta.selectionStart;
+    if(ta.selectionStart !== ta.selectionEnd) return; // let the browser handle selections normally
+
+    const lineStart = value.lastIndexOf('\n', pos - 1) + 1;
+    const lineText  = value.slice(lineStart, pos);
+
+    // Match unordered list: optional indent + bullet marker (-, *, +) + at least one space
+    const unordered = lineText.match(/^(\s*)([-*+])\s+/);
+    // Match ordered list: optional indent + number + period/paren + at least one space
+    const ordered   = lineText.match(/^(\s*)(\d+)([.)]\s+)/);
+
+    if(!unordered && !ordered) return; // not a list line — let the browser insert a normal newline
+
+    e.preventDefault();
+    forceUndoBoundary = true;
+
+    if(unordered){
+      const [full, indent, marker] = unordered;
+      const content = lineText.slice(full.length);
+      if(!content.trim()){
+        // Empty bullet — remove it and leave a plain blank line
+        const before = value.slice(0, lineStart);
+        const after  = value.slice(pos);
+        const newVal = before.trimEnd() + '\n' + after;
+        const newPos = before.trimEnd().length + 1;
+        ta.value = newVal;
+        ta.setSelectionRange(newPos, newPos);
+        ta.dispatchEvent(new Event('input', { bubbles: true }));
+        return;
+      }
+      insertAtCursor(ta, '\n' + indent + marker + ' ');
+    } else {
+      const [full, indent, num, sep] = ordered;
+      const content = lineText.slice(full.length);
+      if(!content.trim()){
+        // Empty ordered item — remove it
+        const before = value.slice(0, lineStart);
+        const after  = value.slice(pos);
+        const newVal = before.trimEnd() + '\n' + after;
+        const newPos = before.trimEnd().length + 1;
+        ta.value = newVal;
+        ta.setSelectionRange(newPos, newPos);
+        ta.dispatchEvent(new Event('input', { bubbles: true }));
+        return;
+      }
+      const nextNum = parseInt(num, 10) + 1;
+      insertAtCursor(ta, '\n' + indent + nextNum + sep);
+    }
+  }
+
+  // ---------- Right-click a selection → "Link…" → pick a file → [text](./path.md) ----------
+  let ctxMenuEl = null, linkPickerEl = null;
+
+  function closeCtxMenu(){
+    if(!ctxMenuEl) return;
+    ctxMenuEl.remove(); ctxMenuEl = null;
+    document.removeEventListener('mousedown', onCtxMenuOutside);
+    document.removeEventListener('keydown', onCtxMenuEscape);
+  }
+  function onCtxMenuOutside(e){ if(ctxMenuEl && !ctxMenuEl.contains(e.target)) closeCtxMenu(); }
+  function onCtxMenuEscape(e){ if(e.key === 'Escape') closeCtxMenu(); }
+
+  function showCtxMenu(x, y, onLink){
+    closeCtxMenu();
+    ctxMenuEl = document.createElement('div');
+    ctxMenuEl.className = 'ctx-menu';
+    ctxMenuEl.innerHTML = `<button type="button">🔗 Link…</button>`;
+    document.body.appendChild(ctxMenuEl);
+    const w = ctxMenuEl.offsetWidth, h = ctxMenuEl.offsetHeight;
+    ctxMenuEl.style.left = Math.min(x, window.innerWidth - w - 8) + 'px';
+    ctxMenuEl.style.top = Math.min(y, window.innerHeight - h - 8) + 'px';
+    ctxMenuEl.querySelector('button').addEventListener('click', ()=>{ closeCtxMenu(); onLink(); });
+    setTimeout(()=>{
+      document.addEventListener('mousedown', onCtxMenuOutside);
+      document.addEventListener('keydown', onCtxMenuEscape);
+    }, 0);
+  }
+
+  function closeLinkPicker(){ if(linkPickerEl){ linkPickerEl.remove(); linkPickerEl = null; } }
+
+  // onConfirm(relPath) is called once a target file is chosen; it owns however
+  // the link actually gets inserted (textarea selection vs. rendered preview text).
+  function openLinkPicker(selectedText, onConfirm){
+    closeLinkPicker();
+    const allPaths = Array.from(fileMap.keys()).sort();
+    const overlay = document.createElement('div');
+    overlay.className = 'link-picker-overlay';
+    overlay.innerHTML = `
+      <div class="link-picker">
+        <div class="link-picker-head">
+          <p class="lp-title">Link “${escapeHtml(selectedText)}” to…</p>
+          <p class="lp-sub">Pick a file already open in this folder, or browse for another.</p>
+          <input type="text" id="lpFilter" placeholder="Filter files…" autocomplete="off">
+        </div>
+        <div class="link-picker-list" id="lpList"></div>
+        <div class="lp-url-row">
+          <span class="lp-url-label">Or link to a URL / file path</span>
+          <div class="lp-url-input-wrap">
+            <input type="text" id="lpUrl" placeholder="https://example.com or ./path/to/file.pdf" autocomplete="off" spellcheck="false">
+            <button type="button" class="lp-url-btn" id="lpUrlConfirm" disabled>Link</button>
+          </div>
+        </div>
+        <div class="link-picker-foot">
+          ${supportsFS ? '<button type="button" class="btn btn-dark" id="lpBrowse">Browse files…</button>' : ''}
+          <button type="button" class="btn btn-ghost" id="lpCancel">Cancel</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+    linkPickerEl = overlay;
+
+    const listEl = overlay.querySelector('#lpList');
+    const filterEl = overlay.querySelector('#lpFilter');
+
+    function renderList(filter){
+      const f = (filter || '').toLowerCase();
+      const matches = allPaths.filter(p => p.toLowerCase().includes(f));
+      if(!matches.length){
+        listEl.innerHTML = '<div class="lp-empty">No matching files open in this folder.</div>';
+        return;
+      }
+      listEl.innerHTML = matches.map(p=>{
+        const name = p.split('/').pop().replace(/\.(md|markdown)$/i,'');
+        return `<div class="lp-item" data-path="${escapeHtml(p)}"><span class="lp-name">${escapeHtml(name)}</span><span class="lp-path">${escapeHtml(p)}</span></div>`;
+      }).join('');
+    }
+    renderList('');
+    filterEl.addEventListener('input', ()=> renderList(filterEl.value));
+
+    function finish(relPath){
+      closeLinkPicker();
+      onConfirm(relPath);
+    }
+
+    listEl.addEventListener('click', e=>{
+      const item = e.target.closest('.lp-item');
+      if(!item) return;
+      finish(relativeFromDir(activeFileDir(), item.dataset.path));
+    });
+
+    overlay.querySelector('#lpCancel').addEventListener('click', closeLinkPicker);
+    overlay.addEventListener('mousedown', e=>{ if(e.target === overlay) closeLinkPicker(); });
+    document.addEventListener('keydown', function escHandler(e){
+      if(e.key === 'Escape'){ closeLinkPicker(); document.removeEventListener('keydown', escHandler); }
+    });
+
+    // URL / manual path input
+    const urlInput = overlay.querySelector('#lpUrl');
+    const urlBtn = overlay.querySelector('#lpUrlConfirm');
+    urlInput.addEventListener('input', ()=>{
+      urlBtn.disabled = !urlInput.value.trim();
+    });
+    urlInput.addEventListener('keydown', e=>{
+      if(e.key === 'Enter' && urlInput.value.trim()){ finish(urlInput.value.trim()); }
+    });
+    urlBtn.addEventListener('click', ()=>{
+      if(urlInput.value.trim()) finish(urlInput.value.trim());
+    });
+
+    const browseBtn = overlay.querySelector('#lpBrowse');
+    if(browseBtn){
+      browseBtn.addEventListener('click', async ()=>{
+        let handle;
+        try{
+          [handle] = await window.showOpenFilePicker({
+            multiple: false,
+            excludeAcceptAllOption: false,
+            types: [{ description: 'Markdown', accept: { 'text/markdown': ['.md', '.markdown'] } }]
+          });
+        }catch(err){
+          if(err.name !== 'AbortError') toast('Could not open the file picker: ' + err.message, true);
+          return;
+        }
+        if(!rootHandle){
+          toast('Open a folder first so I can work out a relative path.', true);
+          return;
+        }
+        let parts;
+        try{ parts = await rootHandle.resolve(handle); }
+        catch(err){ parts = null; }
+        if(!parts){
+          toast('Pick a file inside the open folder so the link can be relative.', true);
+          return;
+        }
+        finish(relativeFromDir(activeFileDir(), parts.join('/')));
+      });
+    }
+
+    filterEl.focus();
+  }
+
+  // -- Editor (raw markdown textarea): replace the live selection directly.
+  function handleEditorLinkMenu(e){
+    const ta = e.target;
+    const start = ta.selectionStart, end = ta.selectionEnd;
+    if(start === end) return; // nothing selected — leave the native menu alone
+    e.preventDefault();
+    const selectedText = ta.value.slice(start, end);
+    showCtxMenu(e.clientX, e.clientY, ()=> openLinkPicker(selectedText, relPath=>{
+      ta.focus();
+      ta.setSelectionRange(start, end);
+      forceUndoBoundary = true;
+      insertAtCursor(ta, '[' + selectedText + '](' + relPath + ')');
+    }));
+  }
+
+  // -- Rendered preview pane: the selection is rendered HTML, not raw markdown,
+  // so find that text back in the source and replace it there instead.
+  function escapeRegExp(s){ return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+
+  function applyLinkToSource(selectedText, relPath){
+    const t = tabs[activeIndex];
+    if(!t) return;
+    const content = t.content;
+    let idx = content.indexOf(selectedText);
+    let matchLen = selectedText.length;
+    if(idx === -1){
+      // Rendered whitespace can collapse/differ from the source — retry tolerant of that.
+      const fuzzy = new RegExp(escapeRegExp(selectedText).replace(/\s+/g, '\\s+'));
+      const m = content.match(fuzzy);
+      if(m){ idx = m.index; matchLen = m[0].length; }
+    }
+    if(idx === -1){
+      toast('Couldn’t find that exact text in the markdown source — try selecting it in Edit or Split mode instead.', true);
+      return;
+    }
+    const exactCount = (content.match(new RegExp(escapeRegExp(selectedText), 'g')) || []).length;
+    const newContent = content.slice(0, idx) + '[' + selectedText + '](' + relPath + ')' + content.slice(idx + matchLen);
+    commitContent(t, newContent, { immediate: true });
+    renderTabbar();
+    updateSaveStatus();
+    renderPreviewOnly();
+    scheduleAutosave(t);
+    toast(exactCount > 1
+      ? 'Linked the first match of “' + selectedText + '” (it appears ' + exactCount + ' times)'
+      : 'Linked “' + selectedText + '”');
+  }
+
+  function handleDocLinkMenu(e){
+    const sel = window.getSelection();
+    if(!sel || sel.isCollapsed || sel.rangeCount === 0) return;
+    if(!previewEl.contains(sel.anchorNode) || !previewEl.contains(sel.focusNode)) return;
+    const selectedText = sel.toString();
+    if(!selectedText.trim()) return;
+    e.preventDefault();
+    showCtxMenu(e.clientX, e.clientY, ()=> openLinkPicker(selectedText, relPath=> applyLinkToSource(selectedText, relPath)));
+  }
+
+  // ---------- Image paste & drag-and-drop ----------
+
+  // Prompt the user for a filename (without extension). Returns null if cancelled.
+  function promptImageName(suggestedName){
+    return new Promise(resolve => {
+      // Remove any existing prompt
+      const existing = document.getElementById('imgNamePrompt');
+      if(existing) existing.remove();
+
+      const overlay = document.createElement('div');
+      overlay.id = 'imgNamePrompt';
+      overlay.className = 'link-picker-overlay';
+      overlay.innerHTML = `
+        <div class="link-picker" style="max-height:none;">
+          <div class="link-picker-head">
+            <p class="lp-title">Name this image</p>
+            <p class="lp-sub">It will be saved into an <code>images/</code> folder next to the current file.</p>
+            <input type="text" id="imgNameInput" autocomplete="off" spellcheck="false" value="${escapeHtml(suggestedName)}" placeholder="my-image">
+          </div>
+          <div class="link-picker-foot">
+            <button type="button" class="btn btn-ghost" id="imgNameCancel">Cancel</button>
+            <button type="button" class="btn btn-amber" id="imgNameConfirm">Save image</button>
+          </div>
+        </div>`;
+      document.body.appendChild(overlay);
+
+      const input = overlay.querySelector('#imgNameInput');
+      input.focus();
+      input.select();
+
+      function finish(name){
+        overlay.remove();
+        resolve(name ? name.trim() : null);
+      }
+
+      overlay.querySelector('#imgNameConfirm').addEventListener('click', ()=> finish(input.value));
+      overlay.querySelector('#imgNameCancel').addEventListener('click',  ()=> finish(null));
+      overlay.addEventListener('mousedown', e=>{ if(e.target === overlay) finish(null); });
+      input.addEventListener('keydown', e=>{
+        if(e.key === 'Enter'){ e.preventDefault(); finish(input.value); }
+        if(e.key === 'Escape'){ e.preventDefault(); finish(null); }
+      });
+    });
+  }
+
+  function extFromMime(mime){
+    if(mime === 'image/jpeg') return 'jpg';
+    if(mime === 'image/gif')  return 'gif';
+    if(mime === 'image/webp') return 'webp';
+    if(mime === 'image/svg+xml') return 'svg';
+    return 'png';
+  }
+
+  function fileToArrayBuffer(file){
+    return new Promise((resolve, reject)=>{
+      const reader = new FileReader();
+      reader.onload  = ()=> resolve(reader.result);
+      reader.onerror = ()=> reject(new Error('Could not read image'));
+      reader.readAsArrayBuffer(file);
+    });
+  }
+
+  async function insertImageFile(file, ta){
+    if(!file || !file.type.startsWith('image/')) return false;
+
+    if(!rootHandle){
+      toast('Open a folder first — images need somewhere to be saved.', true);
+      return true;
+    }
+
+    // Work out a suggested name: use file.name (minus extension) for drops, "image" for pastes
+    const hasRealName = file.name && !file.name.startsWith('image.') && file.name !== 'image';
+    const suggested = hasRealName
+      ? file.name.replace(/\.[^.]+$/, '')   // strip extension
+      : 'image';
+
+    const chosenName = await promptImageName(suggested);
+    if(!chosenName) return true; // user cancelled
+
+    const ext = extFromMime(file.type);
+    const fileName = chosenName.replace(/[/\\:*?"<>|]+/g, '-') + '.' + ext;
+
+    // Save into images/ sibling to the active file
+    const activeTab = tabs[activeIndex];
+    const activeDir = activeTab ? dirnameOf(activeTab.path) : '';
+
+    try{
+      // Navigate to (or create) the images/ subdirectory
+      let dirHandle = rootHandle;
+      const dirParts = activeDir ? activeDir.split('/').filter(Boolean) : [];
+      for(const part of dirParts) dirHandle = await dirHandle.getDirectoryHandle(part, { create: true });
+      const imgDirHandle = await dirHandle.getDirectoryHandle('images', { create: true });
+
+      // Write the file
+      const imgHandle = await imgDirHandle.getFileHandle(fileName, { create: true });
+      const writable = await imgHandle.createWritable();
+      const buf = await fileToArrayBuffer(file);
+      await writable.write(buf);
+      await writable.close();
+
+      // Register in fileMap so the preview can resolve it immediately (no re-walk needed)
+      const absImgPath = (activeDir ? activeDir + '/' : '') + 'images/' + fileName;
+      fileMap.set(absImgPath, imgHandle);
+      fileKind.set(absImgPath, 'handle');
+      // Bust the object URL cache entry if it somehow already exists
+      imgObjectURLs.delete(absImgPath);
+    }catch(e){
+      toast('Could not save image: ' + e.message, true);
+      return true;
+    }
+
+    // Build a relative path from the active file to images/<fileName>
+    const imgRelPath = activeDir
+      ? relativeFromDir(activeDir, (activeDir ? activeDir + '/' : '') + 'images/' + fileName)
+      : './images/' + fileName;
+
+    const altText = chosenName;
+    const mdSnippet = `![${altText}](${imgRelPath})`;
+    forceUndoBoundary = true;
+    if(ta){ ta.focus(); insertAtCursor(ta, mdSnippet); }
+    toast('Saved ' + (activeDir ? activeDir + '/' : '') + 'images/' + fileName);
+    return true;
+  }
+
+  function handleEditorImagePaste(e){
+    const items = e.clipboardData && e.clipboardData.items;
+    if(!items) return;
+    for(const item of items){
+      if(item.kind === 'file' && item.type.startsWith('image/')){
+        e.preventDefault();
+        const file = item.getAsFile();
+        insertImageFile(file, e.target);
+        return;
+      }
+    }
+    // plain text paste falls through to the browser default
+  }
+
+  function handleEditorDragOver(e){
+    const hasImage = Array.from(e.dataTransfer.items || []).some(i => i.kind === 'file' && i.type.startsWith('image/'));
+    if(!hasImage) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+    editorEl.classList.add('img-dragover');
+  }
+
+  function handleEditorDragLeave(e){
+    if(!editorEl.contains(e.relatedTarget)) editorEl.classList.remove('img-dragover');
+  }
+
+  async function handleEditorDrop(e){
+    editorEl.classList.remove('img-dragover');
+    const files = Array.from(e.dataTransfer.files || []).filter(f => f.type.startsWith('image/'));
+    if(!files.length) return;
+    e.preventDefault();
+    for(const file of files) await insertImageFile(file, editorEl);
+  }
+
+  // ---------- Undo / Redo ----------
+  const UNDO_GAP_MS = 700;   // a pause this long starts a new undo step; fast typing coalesces into one
+  const MAX_UNDO = 200;
+  let forceUndoBoundary = false; // set true right before a discrete programmatic edit (bold, link, tab) so it gets its own undo step
+
+  function pushUndoSnapshot(t, content){
+    if(!t.undo) t.undo = [];
+    if(t.undo.length && t.undo[t.undo.length - 1] === content) return;
+    t.undo.push(content);
+    if(t.undo.length > MAX_UNDO) t.undo.shift();
+    t.redo = [];
+  }
+
+  // Single entry point for any change to a tab's content outside of undo/redo itself.
+  function commitContent(t, newContent, opts){
+    if(!t) return;
+    opts = opts || {};
+    const now = Date.now();
+    const boundary = opts.immediate || forceUndoBoundary || (now - (t.lastEditAt || 0) > UNDO_GAP_MS);
+    if(boundary && t.content !== newContent) pushUndoSnapshot(t, t.content);
+    forceUndoBoundary = false;
+    t.lastEditAt = now;
+    t.content = newContent;
+    t.dirty = true;
+    if(editorEl && editorEl.value !== newContent) editorEl.value = newContent;
+    updateUndoRedoButtons();
+  }
+
+  function performUndo(){
+    const t = tabs[activeIndex];
+    if(!t || !t.undo || !t.undo.length) return;
+    const current = t.content;
+    const prev = t.undo.pop();
+    (t.redo = t.redo || []).push(current);
+    t.content = prev;
+    t.dirty = true;
+    t.lastEditAt = 0; // next keystroke starts a fresh undo step rather than merging with this jump
+    if(editorEl) editorEl.value = prev;
+    renderTabbar();
+    updateSaveStatus();
+    renderPreviewOnly();
+    scheduleAutosave(t);
+    updateUndoRedoButtons();
+  }
+
+  function performRedo(){
+    const t = tabs[activeIndex];
+    if(!t || !t.redo || !t.redo.length) return;
+    const current = t.content;
+    const next = t.redo.pop();
+    (t.undo = t.undo || []).push(current);
+    t.content = next;
+    t.dirty = true;
+    t.lastEditAt = 0;
+    if(editorEl) editorEl.value = next;
+    renderTabbar();
+    updateSaveStatus();
+    renderPreviewOnly();
+    scheduleAutosave(t);
+    updateUndoRedoButtons();
+  }
+
+  function updateUndoRedoButtons(){
+    const t = tabs[activeIndex];
+    if(els.btnUndo) els.btnUndo.disabled = !(t && t.undo && t.undo.length);
+    if(els.btnRedo) els.btnRedo.disabled = !(t && t.redo && t.redo.length);
+  }
+
+  function handleEditorUndoRedo(e){
+    const mod = e.ctrlKey || e.metaKey;
+    if(!mod || e.key.toLowerCase() !== 'z' && e.key.toLowerCase() !== 'y') return;
+    const isRedo = e.key.toLowerCase() === 'y' || (e.key.toLowerCase() === 'z' && e.shiftKey);
+    e.preventDefault();
+    if(isRedo) performRedo(); else performUndo();
+  }
+
+  function handleEditorTab(e){
+    if(e.key !== 'Tab') return;
+    e.preventDefault();
+    forceUndoBoundary = true;
+    const ta = e.target;
+    const value = ta.value;
+    const start = ta.selectionStart, end = ta.selectionEnd;
+    const collapsed = start === end;
+    const lineStart = value.lastIndexOf('\n', start - 1) + 1;
+
+    if(collapsed && !e.shiftKey){
+      let curLineEnd = value.indexOf('\n', start);
+      if(curLineEnd === -1) curLineEnd = value.length;
+      if(!isListLine(value.slice(lineStart, curLineEnd))){
+        insertAtCursor(ta, INDENT); // plain tab insertion mid-text
+        return;
+      }
+      // it's a list line with a collapsed cursor — fall through to whole-line indent
+    }
+
+    let blockEnd;
+    if(end > start && value[end - 1] === '\n') blockEnd = end - 1; // selection ends right at next line's start: don't drag that line in
+    else { blockEnd = value.indexOf('\n', end); if(blockEnd === -1) blockEnd = value.length; }
+
+    ta.setSelectionRange(lineStart, blockEnd);
+    const lines = value.slice(lineStart, blockEnd).split('\n');
+    const newLines = e.shiftKey
+      ? lines.map(line=>{
+          if(line.startsWith(INDENT)) return line.slice(INDENT.length);
+          if(line.startsWith('\t')) return line.slice(1);
+          const m = line.match(/^ {1,2}/);
+          return m ? line.slice(m[0].length) : line;
+        })
+      : lines.map(line => INDENT + line);
+    const newBlock = newLines.join('\n');
+    insertAtCursor(ta, newBlock);
+    ta.setSelectionRange(lineStart, lineStart + newBlock.length);
+  }
+
+  // Object URL cache so we don't recreate URLs on every render
+  const imgObjectURLs = new Map(); // absolute folder-relative path -> object URL
+
+  async function resolvePreviewImages(){
+    const t = tabs[activeIndex];
+    if(!t) return;
+    const imgs = previewEl.querySelectorAll('img[src]');
+    for(const img of imgs){
+      const src = img.getAttribute('src');
+
+      // Parse size suffix from alt text: "name|400x300", "name|400", "name|x300"
+      const alt = img.getAttribute('alt') || '';
+      const sizeMatch = alt.match(/\|(\d*)x(\d+)$|\|(\d+)x(\d*)$|\|(\d+)$/);
+      if(sizeMatch){
+        const w = sizeMatch[3] || sizeMatch[5] || sizeMatch[1];
+        const h = sizeMatch[4] || sizeMatch[2];
+        if(w) img.style.width  = w + 'px';
+        if(h) img.style.height = h + 'px';
+        if(w && !h) img.style.height = 'auto';
+        if(h && !w) img.style.width  = 'auto';
+        img.alt = alt.replace(/\|[\dx]+$/, '');
+      }
+
+      // Wrap the image in .img-wrap with resize handle (skip if already wrapped)
+      if(src && !src.startsWith('data:') && !img.closest('.img-wrap')){
+        img.dataset.mdSrc = src;
+        const wrap = document.createElement('div');
+        wrap.className = 'img-wrap';
+        wrap.innerHTML = '<div class="img-handle" title="Drag to resize"></div><div class="img-size-badge"></div>';
+        img.parentNode.insertBefore(wrap, img);
+        wrap.insertBefore(img, wrap.firstChild);
+
+        // Wire drag handle once image & parsed data are ready
+        const parsed = parseImgSizeFromSource(src, t.content);
+        if(parsed) attachResizeHandle(wrap, img, parsed);
+      }
+
+      // Skip already-resolved blob/data URLs and absolute http URLs
+      if(!src || src.startsWith('blob:') || src.startsWith('data:') || /^https?:\/\//i.test(src)) continue;
+      // Resolve relative to the active file's directory
+      const absPath = resolveRelative(t.path, src);
+      if(imgObjectURLs.has(absPath)){
+        img.src = imgObjectURLs.get(absPath);
+        continue;
+      }
+      const handle = fileMap.get(absPath);
+      if(!handle) continue;
+      try{
+        const file = (typeof handle.getFile === 'function') ? await handle.getFile() : handle;
+        const url = URL.createObjectURL(file);
+        imgObjectURLs.set(absPath, url);
+        img.src = url;
+      }catch(e){ /* leave broken image icon */ }
+    }
+  }
+
+  // ---------- Image drag-to-resize ----------
+  let selectedImgWrap = null;
+
+  function deselectImg(){
+    if(selectedImgWrap){ selectedImgWrap.classList.remove('img-selected'); selectedImgWrap = null; }
+  }
+
+  // Parse size spec from the markdown source for a given original src path
+  function parseImgSizeFromSource(src, content){
+    const escapedSrc = src.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const re = new RegExp('!\\[([^\\]]*)\\]\\(' + escapedSrc + '\\)');
+    const m = content.match(re);
+    if(!m) return null;
+    const rawAlt = m[1];
+    const sizeM = rawAlt.match(/\|(\d*)x(\d+)$|\|(\d+)x(\d*)$|\|(\d+)$/);
+    const baseName = rawAlt.replace(/\|[\dx]+$/, '');
+    let w = null, h = null;
+    if(sizeM){
+      w = parseInt(sizeM[3] || sizeM[5] || sizeM[1] || '0', 10) || null;
+      h = parseInt(sizeM[4] || sizeM[2] || '0', 10) || null;
+    }
+    return { rawAlt, baseName, w, h, fullMatch: m[0], src };
+  }
+
+  function applyImgSizeToSource(parsed, newW){
+    const t = tabs[activeIndex];
+    if(!t || !parsed) return;
+    const newAlt = newW ? parsed.baseName + '|' + newW : parsed.baseName;
+    const newMd  = '![' + newAlt + '](' + parsed.src + ')';
+    const newContent = t.content.replace(parsed.fullMatch, newMd);
+    if(newContent === t.content) return;
+    commitContent(t, newContent, { immediate: true });
+    renderTabbar();
+    updateSaveStatus();
+    scheduleAutosave(t);
+    parsed.rawAlt   = newAlt;
+    parsed.w        = newW;
+    parsed.fullMatch = newMd;
+    if(mode === 'split') debouncedRenderPreview();
+  }
+
+  function attachResizeHandle(wrap, img, parsed){
+    const handle = wrap.querySelector('.img-handle');
+    const badge  = wrap.querySelector('.img-size-badge');
+    let startX, startW;
+
+    handle.addEventListener('mousedown', e=>{
+      e.preventDefault();
+      e.stopPropagation();
+      startX = e.clientX;
+      startW = img.getBoundingClientRect().width;
+      wrap.classList.add('img-resizing');
+
+      function onMove(e){
+        const newW = Math.max(40, Math.round(startW + (e.clientX - startX)));
+        img.style.width  = newW + 'px';
+        img.style.height = 'auto';
+        badge.textContent = newW + 'px';
+      }
+      function onUp(e){
+        wrap.classList.remove('img-resizing');
+        const finalW = Math.max(40, Math.round(startW + (e.clientX - startX)));
+        applyImgSizeToSource(parsed, finalW);
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup',   onUp);
+      }
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup',   onUp);
+    });
+  }
+
+  function handlePreviewImgClick(e){
+    const img = e.target.closest('img');
+    // clicking the handle itself — don't deselect
+    if(e.target.classList.contains('img-handle')) return;
+
+    if(!img || !previewEl.contains(img)){
+      deselectImg();
+      return;
+    }
+    e.stopPropagation();
+    const wrap = img.closest('.img-wrap');
+    if(!wrap) return;
+
+    if(selectedImgWrap && selectedImgWrap !== wrap) deselectImg();
+    wrap.classList.add('img-selected');
+    selectedImgWrap = wrap;
+  }
+
+  // ---------- double-click preview → jump to source ----------
+  function handlePreviewDblClick(e){
+    const t = tabs[activeIndex];
+    if(!t) return;
+
+    // Find the closest meaningful block element that was clicked
+    const block = e.target.closest('p, h1, h2, h3, h4, h5, h6, li, blockquote, td, th, pre, code');
+    if(!block) return;
+
+    // Get the plain text of that block, stripped of any mark highlights we injected
+    const blockText = block.textContent.trim();
+    if(!blockText || blockText.length < 3) return;
+
+    // Build a search needle: take up to 60 chars of the block text,
+    // escape regex specials, allow flexible whitespace between words
+    // (markdown may have line-breaks mid-paragraph)
+    const needle = blockText.slice(0, 80)
+      .replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+      .replace(/\s+/g, '[\\s\\S]{0,4}'); // allow small gaps for newlines
+    let matchIdx = -1, matchLen = 0;
+    try {
+      const re = new RegExp(needle, 'i');
+      const m = re.exec(t.content);
+      if(m){ matchIdx = m.index; matchLen = m[0].length; }
+    } catch(_e) {
+      // fallback: plain indexOf on first 40 chars
+      const plain = blockText.slice(0, 40);
+      matchIdx = t.content.indexOf(plain);
+      matchLen = plain.length;
+    }
+
+    if(matchIdx === -1) return; // couldn't locate in source
+
+    // Switch to split mode (or stay if already there; never go to edit-only)
+    if(mode !== 'split') setMode('split');
+
+    // After mode switch the editor is now visible — set selection and scroll
+    requestAnimationFrame(() => {
+      editorEl.focus();
+      editorEl.setSelectionRange(matchIdx, matchIdx + matchLen);
+
+      // Smooth-scroll the textarea to centre the selection
+      const lineHeight = parseFloat(getComputedStyle(editorEl).lineHeight) || 20;
+      const linesBefore = t.content.slice(0, matchIdx).split('\n').length - 1;
+      const approxTop = linesBefore * lineHeight;
+      const halfVisible = editorEl.clientHeight / 2;
+      const targetTop = Math.max(0, approxTop - halfVisible);
+
+      smoothScrollTextarea(editorEl, targetTop, 420);
+
+      // Flash the editor pane to signal where we jumped
+      flashEditorPane();
+    });
+  }
+
+  function smoothScrollTextarea(el, targetTop, duration){
+    const startTop = el.scrollTop;
+    const dist = targetTop - startTop;
+    if(Math.abs(dist) < 2){ el.scrollTop = targetTop; return; }
+    const startTime = performance.now();
+    function easeInOutCubic(t){ return t < 0.5 ? 4*t*t*t : 1 - Math.pow(-2*t+2,3)/2; }
+    function step(now){
+      const elapsed = now - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      el.scrollTop = startTop + dist * easeInOutCubic(progress);
+      if(progress < 1) requestAnimationFrame(step);
+    }
+    requestAnimationFrame(step);
+  }
+
+  function flashEditorPane(){
+    const paneEdit = panesEl && panesEl.querySelector('.pane-edit');
+    if(!paneEdit) return;
+    paneEdit.classList.add('source-flash');
+    setTimeout(() => paneEdit.classList.remove('source-flash'), 600);
+  }
+
+  function renderPreviewOnly(){
+    deselectImg();
+    const t = tabs[activeIndex];
+    if(!t) return;
+    marked.setOptions({ gfm: true, breaks: false });
+    const html = marked.parse(t.content);
+    previewEl.innerHTML = html;
+    const seen = {};
+    previewEl.querySelectorAll('h1,h2,h3,h4,h5,h6').forEach(h=>{
+      let slug = slugify(h.textContent) || 'section';
+      if(seen[slug] != null){ seen[slug]++; slug = slug + '-' + seen[slug]; } else seen[slug] = 0;
+      h.id = slug;
+    });
+    previewEl.querySelectorAll('a[href^="http"]').forEach(a=>{ a.target = '_blank'; a.rel = 'noopener'; });
+    resolvePreviewImages();
+  }
+  function renderActive(){
+    ensurePanes();
+    const t = tabs[activeIndex];
+    if(!t) return;
+    editorEl.value = t.content;
+    renderPreviewOnly();
+    els.activePath.textContent = t.path;
+    els.btnSave.disabled = !t.dirty;
+    updateSaveStatus();
+    updateUndoRedoButtons();
+    setMode(mode, true);
+    // consume any pending search highlight from clicking a search result
+    if(pendingSearchTerms){
+      const terms = pendingSearchTerms;
+      pendingSearchTerms = null;
+      // defer one frame so the preview is fully painted before we scroll
+      requestAnimationFrame(() => highlightSearchTermsInPreview(terms));
+    }
+  }
+
+  function updateSaveStatus(){
+    const t = tabs[activeIndex];
+    if(!t){ els.saveStatus.textContent = ''; els.saveStatus.className = 'save-status'; return; }
+    if(t.kind !== 'handle'){
+      els.saveStatus.textContent = t.dirty ? 'Unsaved (read‑only source)' : '';
+      els.saveStatus.className = 'save-status' + (t.dirty ? ' dirty' : '');
+      return;
+    }
+    els.saveStatus.textContent = t.dirty ? 'Unsaved changes' : 'Saved';
+    els.saveStatus.className = 'save-status ' + (t.dirty ? 'dirty' : 'saved');
+  }
+
+  function scheduleAutosave(tab){
+    clearTimeout(tab._autosaveTimer);
+    if(!autosaveEnabled || tab.kind !== 'handle' || !writable) return;
+    tab._autosaveTimer = setTimeout(()=> performAutosave(tab), 1200);
+  }
+
+  async function performAutosave(tab){
+    if(!autosaveEnabled || tab.kind !== 'handle' || !writable || !tab.dirty) return;
+    try{
+      const handle = fileMap.get(tab.path);
+      if(!handle) return;
+      const w = await handle.createWritable();
+      await w.write(tab.content);
+      await w.close();
+      tab.dirty = false;
+      BM25.addOrUpdate(tab.path, tab.content);
+      renderTabbar();
+      if(tabs[activeIndex] === tab){ els.btnSave.disabled = true; updateSaveStatus(); }
+    }catch(e){
+      if(tabs[activeIndex] === tab) toast('Autosave failed: ' + e.message, true);
+    }
+  }
+
+  document.getElementById('btnAutosave').addEventListener('click', ()=>{
+    autosaveEnabled = !autosaveEnabled;
+    const btn = els.btnAutosave;
+    btn.classList.toggle('active', autosaveEnabled);
+    btn.textContent = autosaveEnabled ? '⏺ Autosave: On' : '⏸ Autosave: Off';
+    if(autosaveEnabled){
+      tabs.forEach(t => { if(t.dirty) scheduleAutosave(t); });
+      toast('Autosave on — changes save shortly after you stop typing');
+    }else{
+      tabs.forEach(t => clearTimeout(t._autosaveTimer));
+      toast('Autosave off — use Save or ⌘/Ctrl+S');
+    }
+  });
+
+  function onPreviewClick(e){
+    const a = e.target.closest('a');
+    if(!a) return;
+    const href = a.getAttribute('href') || '';
+    if(href.startsWith('#')){
+      e.preventDefault();
+      const id = href.slice(1);
+      try{
+        const target = previewEl.querySelector('#' + CSS.escape(id));
+        if(target) target.scrollIntoView({ behavior:'smooth', block:'start' });
+      }catch(_e){}
+      return;
+    }
+    if(/^https?:\/\//i.test(href) || href.startsWith('mailto:')) return;
+    if(!/\.(md|markdown)$/i.test(href.split('#')[0])) return;
+    e.preventDefault();
+    const t = tabs[activeIndex];
+    const target = resolveRelative(t.path, href);
+    openOrCreate(target);
+  }
+
+  // ---------- mode switch ----------
+  function setMode(m, silent){
+    mode = m;
+    if(panesEl) panesEl.className = 'panes mode-' + m;
+    document.querySelectorAll('#modeSwitch button').forEach(b => b.classList.toggle('active', b.dataset.mode === m));
+    if(!silent && (m === 'split' || m === 'preview')) renderPreviewOnly();
+    if(m === 'split' && editorEl && previewScrollEl) syncScrollFrom(editorEl, previewScrollEl);
+  }
+  document.getElementById('modeSwitch').addEventListener('click', e=>{
+    const btn = e.target.closest('button');
+    if(btn) setMode(btn.dataset.mode);
+  });
+
+  // ---------- save ----------
+  async function saveActive(){
+    const t = tabs[activeIndex];
+    if(!t) return;
+    clearTimeout(t._autosaveTimer);
+    if(t.kind === 'handle' && writable){
+      try{
+        const handle = fileMap.get(t.path);
+        const w = await handle.createWritable();
+        await w.write(t.content);
+        await w.close();
+        t.dirty = false;
+        BM25.addOrUpdate(t.path, t.content);
+        renderTabbar();
+        els.btnSave.disabled = true;
+        updateSaveStatus();
+        toast('Saved ' + t.path);
+      }catch(e){ toast('Save failed: ' + e.message, true); }
+    }else{
+      const blob = new Blob([t.content], { type: 'text/markdown' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = t.path.split('/').pop();
+      document.body.appendChild(a); a.click(); a.remove();
+      URL.revokeObjectURL(url);
+      t.dirty = false; renderTabbar(); els.btnSave.disabled = true;
+      updateSaveStatus();
+      toast('Downloaded ' + t.path + ' (no write access to original)');
+    }
+  }
+  els.btnSave.addEventListener('click', saveActive);
+  els.btnUndo.addEventListener('click', performUndo);
+  els.btnRedo.addEventListener('click', performRedo);
+
+  document.addEventListener('keydown', e=>{
+    if((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's'){
+      e.preventDefault();
+      if(activeIndex !== -1) saveActive();
+      return;
+    }
+    // Global fallback for when focus isn't in the editor textarea (e.g. Preview mode,
+    // or just clicked a toolbar button) — but never steal it from some other text field's
+    // own native undo (e.g. typing in the link-picker's filter box).
+    const ae = document.activeElement;
+    const isOtherTextField = ae && ae !== editorEl && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.isContentEditable);
+    if((e.metaKey || e.ctrlKey) && ae !== editorEl && !isOtherTextField){
+      const k = e.key.toLowerCase();
+      if(k === 'z' && !e.shiftKey){ e.preventDefault(); performUndo(); }
+      else if(k === 'z' && e.shiftKey || k === 'y'){ e.preventDefault(); performRedo(); }
+    }
+  });
+
+})();
+</script>
+</body>
+</html>
