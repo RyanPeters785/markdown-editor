@@ -1313,7 +1313,7 @@
   async function openOrCreate(path){
     if(fileMap.has(path)){ openFile(path); return; }
     if(!rootHandle){ toast('Open a folder first to create “' + path + '”', true); return; }
-    if(confirm('“' + path + '” doesn't exist yet. Create it?')){
+    if(confirm('“' + path + '” doesn\'t exist yet. Create it?')){
       try{
         await createFileAtPath(path, '# ' + path.split('/').pop().replace(/\.(md|markdown)$/i,'') + '\n\n');
         openFile(path);
